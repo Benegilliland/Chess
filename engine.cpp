@@ -396,7 +396,7 @@ bool Engine::detectCheck(bool turn, Piece* board) {
 			calcAvailMoves(i, avail_moves, board);
 			for (int j = 0; j < avail_moves.size(); j++) {
 				if (avail_moves[j] == findKing(turn, board)) {
-					std::cout << "King is in check at i = " << i << ", j = " << avail_moves[j] << '\n';
+					//std::cout << "King is in check at i = " << i << ", j = " << avail_moves[j] << '\n';
 					checkstate = (turn ? white_check : black_check);
 					avail_moves.clear();
 					return true;
@@ -427,7 +427,7 @@ bool Engine::detectCheckmate(bool turn) {
 				makeMove(i, avail_moves_copy[j]);
 				if (!detectCheck(turncopy, board)) {
 					checkmate = false;
-					std::cout << "found escape move: i = "  << i << ", j = " << avail_moves_copy[j] << '\n';
+					//std::cout << "found escape move: i = "  << i << ", j = " << avail_moves_copy[j] << '\n';
 				}
 				makeMove(avail_moves_copy[j], i);
 				board[avail_moves_copy[j]] = piece;
@@ -485,8 +485,30 @@ void Engine::printBoard(Piece* board) {
 	}
 }
 
-/*
-AI needs to work outside of engine 
-Run a 2-move loop until checkmate
-loop consists of a player move and an AI move
-*/
+void Engine::findAvailableMoves(Turn turn, std::vector<Move> preMoves, std::vector<Move>& moves) {
+	std::vector<Piece> storage;
+	if (preMoves.size() >= 1) {
+		for (int i = 0; i < preMoves.size(); i++) {
+			storage.push_back(board[preMoves[i].sq[0]]);
+			storage.push_back(board[preMoves[i].sq[1]]);
+			board[preMoves[i].sq[1]] = board[preMoves[i].sq[0]];
+			board[preMoves[i].sq[0]] = empty_square;
+		}
+	}
+	std::vector<int> avail_moves;
+	for (int i = 0; i < 64; i++) {
+		if (board[i] >= (1 +  6 * turn) && board[i] <= (6 + 6 * turn)) {
+			calcAvailMoves(i, avail_moves, board);
+			for (int j = 0; j < avail_moves.size(); j++) {
+				moves.push_back({ i, avail_moves[j] });
+			}
+			avail_moves.clear();
+		}
+	}
+	if (preMoves.size() >= 1) {
+		for (int i = preMoves.size() - 1; i >= 0; i--) {
+			board[preMoves[i].sq[0]] = storage[2 * i];
+			board[preMoves[i].sq[1]] = storage[2 * i + 1];
+		}
+	}
+}

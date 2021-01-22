@@ -18,6 +18,10 @@ enum Turn {
 	black = false, white = true
 };
 
+struct Move {
+	int sq[2];
+};
+
 class Engine {
 	const char* WINDOW_TITLE = "Chess";
 	const int SQUARE_WIDTH = 80;
@@ -71,4 +75,5 @@ public:
 	void promoteBishop(int square);
 	void promoteKnight(int square);
 	void printBoard(Piece* board);
+	void findAvailableMoves(Turn turn, std::vector<Move> preMoves, std::vector<Move>& moves);
 };

@@ -10,67 +10,82 @@ int AI::evaluateBoard() {
 	for (int i = 0; i < 64; i++) {
 		score += pieceValue[board[i]];
 	}
-	return score;
-}
-
-int AI::evaluateBoard(Piece* board) {
-	int score = 0;
-	for (int i = 0; i < 64; i++) {
-		score += pieceValue[board[i]];
-	}
 	if (_engine->detectCheck(white, board)) {
-		std::cout << "Detected check on white king\n";
 		score -= 50000;
 	}
 	if (_engine->detectCheck(black, board)) {
-		std::cout << "Detected check on black king\n";
 		score += 50000;
+	}
+	counter++;
+	return score;
+}
+
+int AI::evaluateMoves(std::vector<Move> moves) {
+	Piece* board = _engine->getBoard();
+	int score;
+	std::vector<Piece> storage;
+	for (int i = 0; i < moves.size(); i++) {
+		storage.push_back(board[moves[i].sq[0]]);
+		storage.push_back(board[moves[i].sq[1]]);
+		board[moves[i].sq[1]] = board[moves[i].sq[0]];
+		board[moves[i].sq[0]] = empty_square;
+	}
+	score = evaluateBoard();
+	for (int i = moves.size() - 1; i >= 0; i--) {
+		board[moves[i].sq[0]] = storage[2 * i];
+		board[moves[i].sq[1]] = storage[2 * i + 1];
 	}
 	return score;
 }
 
-int AI::evaluateMove(int oldSq, int newSq) {
-	Piece* board = _engine->getBoard();
-	Piece board2[64];
-	for (int i = 0; i < 64; i++) {
-		board2[i] = board[i];
+int AI::findMoveRecursive(char step, std::vector<Move> preMoves) {
+	std::vector<Move> moves;
+	int bestScore;
+	int curScore;
+	//bMove.push_back({ 0,0 });
+	_engine->findAvailableMoves((_side+step)%2?black:white, preMoves, moves);
+	if (step == nSteps) {
+		bestScore = 200000 * (((int)_side + step) % 2 ? 1 : -1);
+		for (auto& i : moves) {
+			preMoves.push_back(i);
+			curScore = evaluateMoves(preMoves);
+			preMoves.pop_back();
+			if (curScore * (((int)_side + step) % 2 ? -1 : 1) >= (bestScore * (((int)_side + step) % 2 ? -1 : 1))) {
+				bestScore = curScore;
+				bMove[step-1] = i;
+			}
+		}
 	}
-	board2[newSq] = board2[oldSq];
-	board2[oldSq] = empty_square;
-	return evaluateBoard(board2);
+	else {
+		int curScore;
+		 bestScore = 200000 * (((int)_side + step) % 2 ? 1 : -1);
+		for (auto& i : moves) {
+			preMoves.push_back(i);
+			curScore = findMoveRecursive(step + 1, preMoves);
+			if (curScore * (((int)_side + step) % 2 ? -1 : 1) >= (bestScore * (((int)_side + step) % 2 ? -1 : 1))) {
+				bestScore = curScore;
+				bMove[step-1] = preMoves[0];
+			}
+			preMoves.pop_back();
+		}
+	}
+	return bestScore;
 }
 
 void AI::doMove() {
-	int move[2] = { 0, 0 };
-	findMove(move);
-	_engine->makeMove(move[0], move[1]);
+	std::vector<Move> moves;
+	counter = 0;
+    findMoveRecursive(1, moves);
+	std::cout << "Checked " << counter << " moves\n";
+	moves.clear();
+	_engine->makeMove(bMove[0].sq[0], bMove[0].sq[1]);
 	_engine->switchTurn();
 }
 
-void AI::findMove(int* move) {
-	Piece* board = _engine->getBoard();
-	std::vector<int> avail_moves;
-	int curMove = 0;
-	int bestMove = 200000 * (_side ? -2 : 1);
-	int bestI = 0;
-	int bestJ = 0;
-	avail_moves.clear();
-	for (int i = 0; i < 64; i++) {
-		if (board[i] >= (1 + 6 * _side) && board[i] <= (6 + 6 * _side)) {
-			_engine->calcAvailMoves(i, avail_moves, board); // Get available moves for every piece on AI's side
-			for (int j = 0; j < avail_moves.size(); j++) { // Loop through available moves
-				curMove = evaluateMove(i, avail_moves[j]); // Evaluate move value
-				std::cout << "curMove = " << curMove << " at i = " << i << ", j = " << avail_moves[j] << '\n';
-				if ((_side == white && curMove >= bestMove) || (_side == black && curMove <= bestMove)) {
-					bestMove = curMove;
-					bestI = i;
-					bestJ = avail_moves[j];
-				}
-			}
-			avail_moves.clear();
-		}
-	}
-	std::cout << "Detected best move with score = " << bestMove << " at i = " << bestI << ", j = " << bestJ << '\n';
-	move[0] = bestI;
-	move[1] = bestJ;
-}
+/* Recursive algorithm
+* If nsteps % 2 = 1, want to maximise score
+* If nsteps % 2 = 0, want to minimise score
+* If nsteps = 1, calculate move with max score
+* If nsteps = 2, calculate move where enemy's best move is lowest
+* If nsteps = 3, calculate move where e
+*/
