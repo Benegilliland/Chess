@@ -1,16 +1,13 @@
 /*
 To add:
 - en passant rule
-- checkmate
-- stalemate
+- castling
+- pawn promotion
+- stalemate (simply loop through all your pieces and check whether the available moves vector is empty)
 - add better highlighting, with different colours
+- improve code
 */
 
-#include "SDL.h"
-#include "SDL_image.h"
-#include <iostream>
-#include <vector>
-#include <algorithm>
 #include "engine.h"
 
 bool Engine::initWindow() {
@@ -41,8 +38,7 @@ void Engine::initBoard() {
 		white_squares[i] = SDL_Rect{ (((2 * i) % 8) + (int)(i / 4) % 2) * SQUARE_WIDTH, (int)(i / 4) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
 		black_squares[i] = SDL_Rect{ (((2 * i + 1) % 8) - (int)(i / 4) % 2) * SQUARE_WIDTH, (int)(i / 4) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
 	}
-	dragging = false;
-	dragsq = dragx = dragy = 0;
+	quit = false;
 }
 
 void Engine::loadImages() {
@@ -73,8 +69,9 @@ void Engine::resetGame() {
 	board[59] = white_queen;
 	board[60] = white_king;
 	wKingPnt = 60;
-	turn = true;
+	turn = white;
 	checkstate = no_check;
+	prevMove[0] = prevMove[1] = {};
 }
 
 void Engine::drawGame() {
@@ -89,9 +86,13 @@ void Engine::drawGame() {
 	SDL_RenderDrawRects(renderer, black_squares, 32);
 	SDL_RenderFillRects(renderer, black_squares, 32);
 
-	SDL_SetRenderDrawColor(renderer, 255, 127, 0, 255);
+	SDL_SetRenderDrawColor(renderer, 206, 220, 80, 255);
 	SDL_RenderDrawRects(renderer, highlighted_squares.data(), highlighted_squares.size());
 	SDL_RenderFillRects(renderer, highlighted_squares.data(), highlighted_squares.size());
+
+	SDL_SetRenderDrawColor(renderer, 206, 220, 80, 255);
+	SDL_RenderDrawRects(renderer, prevMove, 2);
+	SDL_RenderFillRects(renderer, prevMove, 2);
 
 	SDL_Rect dstrect;
 	for (int i = 0; i < 64; i++) {
@@ -113,7 +114,7 @@ void Engine::makeMove(int oldSquare, int newSquare) {
 	if (board[oldSquare] == white_king) wKingPnt = newSquare;
 	board[newSquare] = board[oldSquare];
 	board[oldSquare] = empty_square;
-	turn = !turn;
+	//turn = (turn ? black : white);
 }
 
 bool Engine::validateMove(int oldSquare, int newSquare) { // To add: make sure your move doesn't put you in check
@@ -128,14 +129,14 @@ bool Engine::validateMove(int oldSquare, int newSquare) { // To add: make sure y
 		if (checkstate = no_check) {
 			Piece piece = board[newSquare];
 			makeMove(oldSquare, newSquare);
-			canMove = !detectCheck(turn);
+			canMove = !detectCheck(!turn);
 			makeMove(newSquare, oldSquare);
 			board[newSquare] = piece;
 		}
 		else {
 			Piece piece = board[newSquare];
 			makeMove(oldSquare, newSquare);
-			canMove = !detectCheck(!turn);
+			canMove = !detectCheck(turn);
 			makeMove(newSquare, oldSquare);
 			board[newSquare] = piece;
 		}
@@ -156,8 +157,8 @@ void Engine::mDownEvent(SDL_Event& event) {
 	if ((turn && board[nSquare] > black_king) || (!turn && board[nSquare] <= black_king && board[nSquare] != empty_square)) {
 		highlighted_squares.push_back({ (int)(event.button.x / SQUARE_WIDTH) * SQUARE_WIDTH,
 			(int)(event.button.y / SQUARE_HEIGHT) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT });
-		calcAvailMoves(nSquare);
-		showAvailMoves();
+		calcAvailMoves(nSquare, avail_moves);
+		//showAvailMoves();
 		dragging = true;
 		dragx = dragy = 0;
 		dragsq = nSquare;
@@ -170,11 +171,15 @@ void Engine::mUpEvent(SDL_Event& event) {
 		int oldSquare = rect.x / SQUARE_WIDTH + 8 * rect.y / SQUARE_HEIGHT;
 		int newSquare = (int)(event.button.x / SQUARE_WIDTH) + 8 * (int)(event.button.y / SQUARE_HEIGHT);
 		if (validateMove(oldSquare, newSquare)) {
+			prevMove[0] = { (oldSquare % 8) * SQUARE_WIDTH, (int)(oldSquare/8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
+			prevMove[1] = { (newSquare % 8) * SQUARE_WIDTH, (int)(newSquare / 8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
 			makeMove(oldSquare, newSquare);
+			switchTurn();
 			checkstate = detectCheck(turn) ? (turn ? white_check : black_check) : no_check;
 			if (checkstate != no_check) {
 				detectCheckmate(turn);
 			}
+			//std::cout << "Evaluated board at: " << gameAI.evaluateBoard(board) << '\n';
 		}
 	}
 	dragging = false;
@@ -208,51 +213,51 @@ void Engine::pollEvents() {
 	}
 }
 
-void Engine::calcStrMoves(int square) {
+void Engine::calcStrMoves(int square, std::vector<int>& moves) {
 	if (board[square] != empty_square) {
 		bool white = board[square] > black_king;
 		int x = square % 8;
 		int y = (int)(square / 8);
 		for (int i = 1; i < 8 - x; i++) {
 			if (board[square + i] != empty_square) {
-				if ((white && board[square + i] <= black_king) || (!white && board[square + i] > black_king)) avail_moves.push_back(square + i);
+				if ((white && board[square + i] <= black_king) || (!white && board[square + i] > black_king)) moves.push_back(square + i);
 				break;
 			}
 			else {
-				avail_moves.push_back(square + i);
+				moves.push_back(square + i);
 			}
 		}
 		for (int i = 1; i < (x + 1); i++) {
 			if (board[square - i] != empty_square) {
-				if ((white && board[square - i] <= black_king) || (!white && board[square - i] > black_king)) avail_moves.push_back(square - i);
+				if ((white && board[square - i] <= black_king) || (!white && board[square - i] > black_king)) moves.push_back(square - i);
 				break;
 			}
 			else {
-				avail_moves.push_back(square - i);
+				moves.push_back(square - i);
 			}
 		}
 		for (int i = 1; i < 8 - y; i++) {
 			if (board[square + 8*i] != empty_square) {
-				if ((white && board[square + 8*i] <= black_king) || (!white && board[square + 8*i] > black_king)) avail_moves.push_back(square + 8*i);
+				if ((white && board[square + 8*i] <= black_king) || (!white && board[square + 8*i] > black_king)) moves.push_back(square + 8*i);
 				break;
 			}
 			else {
-				avail_moves.push_back(square + 8*i);
+				moves.push_back(square + 8*i);
 			}
 		}
 		for (int i = 1; i < (y + 1); i++) {
 			if (board[square - 8*i] != empty_square) {
-				if ((white && board[square - 8*i] <= black_king) || (!white && board[square - 8*i] > black_king)) avail_moves.push_back(square - 8*i);
+				if ((white && board[square - 8*i] <= black_king) || (!white && board[square - 8*i] > black_king)) moves.push_back(square - 8*i);
 				break;
 			}
 			else {
-				avail_moves.push_back(square - 8*i);
+				moves.push_back(square - 8*i);
 			}
 		}
 	}
 }
 
-void Engine::calcDiagMoves(int square) {
+void Engine::calcDiagMoves(int square, std::vector<int>& moves) {
 	if (board[square] != empty_square) {
 		bool white = board[square] > black_king;
 		int x = square % 8;
@@ -260,122 +265,122 @@ void Engine::calcDiagMoves(int square) {
 			// Up-left
 			for (int i = 1; i < std::min(x,y)+1; i++) {
 				if (board[square - 9 * i] != empty_square) {
-					if ((white && board[square - 9 * i] <= black_king) || (!white && (board[square - 9*i] == empty_square || board[square - 9*i] > black_king))) avail_moves.push_back(square - 9 * i);
+					if ((white && board[square - 9 * i] <= black_king) || (!white && (board[square - 9*i] == empty_square || board[square - 9*i] > black_king))) moves.push_back(square - 9 * i);
 					break;
 				}
 				else {
-					avail_moves.push_back(square - 9 * i);
+					moves.push_back(square - 9 * i);
 				}
 			}
 			// Up-right
 			for (int i = 1; i < std::min((7-x), y) + 1; i++) {
 				if (board[square - 7 * i] != empty_square) {
-					if ((white && board[square - 7 * i] <= black_king) || (!white && (board[square - 7 * i] == empty_square || board[square - 7 * i] > black_king))) avail_moves.push_back(square - 7 * i);
+					if ((white && board[square - 7 * i] <= black_king) || (!white && (board[square - 7 * i] == empty_square || board[square - 7 * i] > black_king))) moves.push_back(square - 7 * i);
 					break;
 				}
 				else {
-					avail_moves.push_back(square - 7 * i);
+					moves.push_back(square - 7 * i);
 				}
 			}
 			// Down left
 			for (int i = 1; i < std::min(x, (7-y)) + 1; i++) {
 				if (board[square + 7 * i] > empty_square) {
-					if ((white && board[square + 7 * i] <= black_king) || (!white && (board[square + 7 * i] == empty_square || board[square + 7 * i] > black_king))) avail_moves.push_back(square + 7 * i);
+					if ((white && board[square + 7 * i] <= black_king) || (!white && (board[square + 7 * i] == empty_square || board[square + 7 * i] > black_king))) moves.push_back(square + 7 * i);
 					break;
 				}
 				else {
-					avail_moves.push_back(square + 7 * i);
+					moves.push_back(square + 7 * i);
 				}
 			}
 			// Down right
 			for (int i = 1; i < std::min((7-x), (7 - y)) + 1; i++) {
 				if (board[square + 9 * i] > empty_square) {
-					if ((white && board[square + 9 * i] <= black_king) || (!white && (board[square + 9 * i] == empty_square || board[square + 9 * i] > black_king))) avail_moves.push_back(square + 9 * i);
+					if ((white && board[square + 9 * i] <= black_king) || (!white && (board[square + 9 * i] == empty_square || board[square + 9 * i] > black_king))) moves.push_back(square + 9 * i);
 					break;
 				}
 				else {
-					avail_moves.push_back(square + 9 * i);
+					moves.push_back(square + 9 * i);
 				}
 			}
 	}
 }
 
-void Engine::bPawnMoves(int square) {
-	if (board[square + 8] == empty_square) avail_moves.push_back(square + 8);
-	if ((int)(square / 8) == 1 && board[square + 8] == empty_square && board[square + 16] == empty_square) avail_moves.push_back(square + 16);
-	if ((square % 8 != 0) && (board[square + 7] > black_king)) avail_moves.push_back(square + 7);
-	if ((square % 8 != 7) && (board[square + 9] > black_king)) avail_moves.push_back(square + 9);
+void Engine::bPawnMoves(int square, std::vector<int>& moves) {
+	if (board[square + 8] == empty_square) moves.push_back(square + 8);
+	if ((int)(square / 8) == 1 && board[square + 8] == empty_square && board[square + 16] == empty_square) moves.push_back(square + 16);
+	if ((square % 8 != 0) && (board[square + 7] > black_king)) moves.push_back(square + 7);
+	if ((square % 8 != 7) && (board[square + 9] > black_king)) moves.push_back(square + 9);
 }
 
-void Engine::wPawnMoves(int square) {
-	if (board[square - 8] == empty_square) avail_moves.push_back(square - 8);
-	if ((int)(square / 8) == 6 && board[square - 8] == empty_square && board[square - 16] == empty_square) avail_moves.push_back(square - 16);
-	if ((square % 8 != 0) && (board[square - 7] <= black_king && board[square - 7] != empty_square)) avail_moves.push_back(square - 7);
-	if ((square % 8 != 7) && (board[square - 9] <= black_king && board[square - 9] != empty_square)) avail_moves.push_back(square - 9);
+void Engine::wPawnMoves(int square, std::vector<int>& moves) {
+	if (board[square - 8] == empty_square) moves.push_back(square - 8);
+	if ((int)(square / 8) == 6 && board[square - 8] == empty_square && board[square - 16] == empty_square) moves.push_back(square - 16);
+	if ((square % 8 != 7) && (board[square - 7] <= black_king && board[square - 7] != empty_square)) moves.push_back(square - 7);
+	if ((square % 8 != 0) && (board[square - 9] <= black_king && board[square - 9] != empty_square)) moves.push_back(square - 9);
 }
 
-void Engine::calcAvailMoves(int square) {
+void Engine::calcAvailMoves(int square, std::vector<int>& moves) {
 	switch (board[square]) {
 	case empty_square:
 		break;
 	case black_pawn:
-		bPawnMoves(square);
+		bPawnMoves(square, moves);
 		break;
 	case white_pawn:
-		wPawnMoves(square);
+		wPawnMoves(square, moves);
 		break;
 	case black_knight:
-		if (square % 8 != 7 && square > 15 && (board[square - 15] > black_king || board[square - 15] == empty_square)) avail_moves.push_back(square - 15);
-		if (square % 8 < 6 && square > 6 && (board[square - 6] > black_king || board[square - 6] == empty_square)) avail_moves.push_back(square - 6);
-		if (square % 8 != 0 && square > 16 && (board[square - 17] > black_king || board[square - 17] == empty_square)) avail_moves.push_back(square - 17);
-		if (square % 8 > 1 && square > 8 && (board[square - 10] > black_king || board[square - 10] == empty_square)) avail_moves.push_back(square - 10);
-		if (square % 8 != 7 && square < 46 && (board[square + 17] > black_king || board[square + 17] == empty_square)) avail_moves.push_back(square + 17);
-		if (square % 8 < 6 && square < 53 && (board[square + 10] > black_king || board[square + 10] == empty_square)) avail_moves.push_back(square + 10);
-		if (square % 8 != 0 && square < 48 && (board[square + 15] > black_king || board[square + 15] == empty_square)) avail_moves.push_back(square + 15);
-		if (square % 8 > 1 && square < 57 && (board[square + 6] > black_king || board[square + 6] == empty_square)) avail_moves.push_back(square + 6);
+		if (square % 8 != 7 && square > 15 && (board[square - 15] > black_king || board[square - 15] == empty_square)) moves.push_back(square - 15);
+		if (square % 8 < 6 && square > 6 && (board[square - 6] > black_king || board[square - 6] == empty_square)) moves.push_back(square - 6);
+		if (square % 8 != 0 && square > 16 && (board[square - 17] > black_king || board[square - 17] == empty_square)) moves.push_back(square - 17);
+		if (square % 8 > 1 && square > 8 && (board[square - 10] > black_king || board[square - 10] == empty_square)) moves.push_back(square - 10);
+		if (square % 8 != 7 && square < 46 && (board[square + 17] > black_king || board[square + 17] == empty_square)) moves.push_back(square + 17);
+		if (square % 8 < 6 && square < 53 && (board[square + 10] > black_king || board[square + 10] == empty_square)) moves.push_back(square + 10);
+		if (square % 8 != 0 && square < 48 && (board[square + 15] > black_king || board[square + 15] == empty_square)) moves.push_back(square + 15);
+		if (square % 8 > 1 && square < 57 && (board[square + 6] > black_king || board[square + 6] == empty_square)) moves.push_back(square + 6);
 		break;
 	case white_knight:
-		if (square % 8 != 7 && square > 15 && (board[square - 15] <= black_king)) avail_moves.push_back(square - 15);
-		if (square % 8 < 6 && square > 6 && (board[square - 6] <= black_king)) avail_moves.push_back(square - 6);
-		if (square % 8 != 0 && square > 16 && (board[square - 17] <= black_king)) avail_moves.push_back(square - 17);
-		if (square % 8 > 1 && square > 8 && (board[square - 10] <= black_king)) avail_moves.push_back(square - 10);
-		if (square % 8 != 7 && square < 46 && (board[square + 17] <= black_king)) avail_moves.push_back(square + 17);
-		if (square % 8 < 6 && square < 53 && (board[square + 10] <= black_king)) avail_moves.push_back(square + 10);
-		if (square % 8 != 0 && square < 48 && (board[square + 15] <= black_king)) avail_moves.push_back(square + 15);
-		if (square % 8 > 1 && square < 57 && (board[square + 6] <= black_king)) avail_moves.push_back(square + 6);
+		if (square % 8 != 7 && square > 15 && (board[square - 15] <= black_king)) moves.push_back(square - 15);
+		if (square % 8 < 6 && square > 6 && (board[square - 6] <= black_king)) moves.push_back(square - 6);
+		if (square % 8 != 0 && square > 16 && (board[square - 17] <= black_king)) moves.push_back(square - 17);
+		if (square % 8 > 1 && square > 8 && (board[square - 10] <= black_king)) moves.push_back(square - 10);
+		if (square % 8 != 7 && square < 46 && (board[square + 17] <= black_king)) moves.push_back(square + 17);
+		if (square % 8 < 6 && square < 53 && (board[square + 10] <= black_king)) moves.push_back(square + 10);
+		if (square % 8 != 0 && square < 48 && (board[square + 15] <= black_king)) moves.push_back(square + 15);
+		if (square % 8 > 1 && square < 57 && (board[square + 6] <= black_king)) moves.push_back(square + 6);
 		break;
 	case black_bishop:
 	case white_bishop:
-		calcDiagMoves(square);
+		calcDiagMoves(square, moves);
 		break;
 	case black_rook:
 	case white_rook:
-		calcStrMoves(square);
+		calcStrMoves(square, moves);
 		break;
 	case black_queen:
 	case white_queen:
-		calcStrMoves(square);
-		calcDiagMoves(square);
+		calcStrMoves(square, moves);
+		calcDiagMoves(square, moves);
 		break;
 	case black_king:
-		if (square % 8 != 7 && (board[square + 1] == empty_square || board[square + 1] > black_king)) avail_moves.push_back(square + 1);
-		if (square % 8 != 0 && (board[square - 1] == empty_square || board[square - 1] > black_king)) avail_moves.push_back(square - 1);
-		if (square < 56 && (board[square + 8] == empty_square || board[square + 8] > black_king)) avail_moves.push_back(square + 8);
-		if (square > 7 && (board[square - 8] == empty_square || board[square - 8] > black_king)) avail_moves.push_back(square - 8);
-		if (square % 8 != 0 && square > 8 && (board[square - 9] == empty_square || board[square - 9] > black_king)) avail_moves.push_back(square - 9);
-		if (square % 8 != 7 && square > 8 && (board[square - 7] == empty_square || board[square - 7] > black_king)) avail_moves.push_back(square - 7);
-		if (square % 8 != 0 && square < 56 && (board[square + 7] == empty_square || board[square + 7] > black_king)) avail_moves.push_back(square + 7);
-		if (square % 8 != 7 && square < 56 && (board[square + 9] == empty_square || board[square + 9] > black_king)) avail_moves.push_back(square + 9);
+		if (square % 8 != 7 && (board[square + 1] == empty_square || board[square + 1] > black_king)) moves.push_back(square + 1);
+		if (square % 8 != 0 && (board[square - 1] == empty_square || board[square - 1] > black_king)) moves.push_back(square - 1);
+		if (square < 56 && (board[square + 8] == empty_square || board[square + 8] > black_king)) moves.push_back(square + 8);
+		if (square > 7 && (board[square - 8] == empty_square || board[square - 8] > black_king)) moves.push_back(square - 8);
+		if (square % 8 != 0 && square > 8 && (board[square - 9] == empty_square || board[square - 9] > black_king)) moves.push_back(square - 9);
+		if (square % 8 != 7 && square > 8 && (board[square - 7] == empty_square || board[square - 7] > black_king)) moves.push_back(square - 7);
+		if (square % 8 != 0 && square < 56 && (board[square + 7] == empty_square || board[square + 7] > black_king)) moves.push_back(square + 7);
+		if (square % 8 != 7 && square < 56 && (board[square + 9] == empty_square || board[square + 9] > black_king)) moves.push_back(square + 9);
 		break;
 	case white_king:
-		if (square % 8 != 7 && board[square + 1] <= black_king) avail_moves.push_back(square + 1);
-		if (square % 8 != 0 &&board[square - 1] <= black_king) avail_moves.push_back(square - 1);
-		if (square < 56 && board[square + 8] <= black_king) avail_moves.push_back(square + 8);
-		if (square > 7 && board[square - 8] <= black_king) avail_moves.push_back(square - 8);
-		if (square % 8 != 0 && square > 8 && board[square - 9] <= black_king) avail_moves.push_back(square - 9);
-		if (square % 8 != 7 && square > 8 && board[square - 7] <= black_king) avail_moves.push_back(square - 7);
-		if (square % 8 != 0 && square < 56 && board[square + 7] <= black_king) avail_moves.push_back(square + 7);
-		if (square % 8 != 7 && square < 56 && board[square + 9] <= black_king) avail_moves.push_back(square + 9);
+		if (square % 8 != 7 && board[square + 1] <= black_king) moves.push_back(square + 1);
+		if (square % 8 != 0 &&board[square - 1] <= black_king) moves.push_back(square - 1);
+		if (square < 56 && board[square + 8] <= black_king) moves.push_back(square + 8);
+		if (square > 7 && board[square - 8] <= black_king) moves.push_back(square - 8);
+		if (square % 8 != 0 && square > 8 && board[square - 9] <= black_king) moves.push_back(square - 9);
+		if (square % 8 != 7 && square > 8 && board[square - 7] <= black_king) moves.push_back(square - 7);
+		if (square % 8 != 0 && square < 56 && board[square + 7] <= black_king) moves.push_back(square + 7);
+		if (square % 8 != 7 && square < 56 && board[square + 9] <= black_king) moves.push_back(square + 9);
 		break;
 	}
 }
@@ -386,52 +391,87 @@ void Engine::showAvailMoves() {
 	}
 }
 
-bool Engine::detectCheck(bool white) {
+bool Engine::detectCheck(bool turn) {
+	//std::cout << "turn = " << turn << '\n';
 	avail_moves.clear();
-	for (int i = 0; i < 63; i++) {
-		calcAvailMoves(i);
-		for (int j = 0; j < avail_moves.size(); j++) {
-			if (white) {
-				if (avail_moves[j] == wKingPnt && board[i] <= black_king && board[i] != empty_square) {
-					std::cout << "White king is in check\n";
-					checkstate = white_check;
+	//turn = !turn;
+	// Algorithm description:
+	// Calculate available moves for all "enemy pieces"
+	// Check whether king is in any of them
+	for (int i = 0; i < 64; i++) {
+		if (board[i] >= (7 - 6 * turn) && board[i] <= (12 + 6 * turn)) {
+			//std::cout << "testing piece " << i << '\n';
+			calcAvailMoves(i, avail_moves);
+			//std::cout << "available moves: " << avail_moves.size() << '\n';
+			for (int j = 0; j < avail_moves.size(); j++) { // If it's attacking king
+				if (avail_moves[j] == (turn ? wKingPnt : bKingPnt)) {
+					std::cout << "King is in check at i = " << i << ", j = " << avail_moves[j] << '\n';
+					checkstate = (turn ? white_check : black_check);
 					avail_moves.clear();
 					return true;
 				}
 			}
-			else {
-				if (avail_moves[j] == bKingPnt && board[i] > black_king) {
-					std::cout << "Black king is in check\n";
-					checkstate = black_check;
-					avail_moves.clear();
-					return true;
-					break;
-				}
-			}
+			avail_moves.clear();
 		}
-		avail_moves.clear();
 	}
 	return false;
 }
 
 bool Engine::detectCheckmate(bool turn) {
-	
+	//std::cout << "turn = " << turn << '\n';
+	std::vector<int> avail_moves_copy;
+	Piece piece;
+	avail_moves.clear();
+	bool checkmate = true;
+	bool turncopy = turn;
+	for (int i = 0; i < 64; i++) {
+		if (board[i] >= (1 + 6 * turncopy) && board[i] <= (7 + 6*turncopy)) { // If piece is same as the one in check
+			calcAvailMoves(i, avail_moves); 	// Calculate available moves
+			avail_moves_copy = avail_moves;
+			//std::cout << "avail_moves.size() = " << avail_moves.size() << '\n';
+			for (int j = 0; j < avail_moves_copy.size(); j++) { // Loop through every available move
+				// Check whether the move clears checkmate
+				//std::cout << "Testing move: i = " << i << ", j = " << avail_moves_copy[j] << '\n';
+				piece = board[avail_moves_copy[j]];
+				makeMove(i, avail_moves_copy[j]);
+				if (!detectCheck(turncopy)) {
+					checkmate = false;
+					std::cout << "found escape move: i = "  << i << ", j = " << avail_moves_copy[j] << '\n';
+				}
+				makeMove(avail_moves_copy[j], i);
+				board[avail_moves_copy[j]] = piece;
+				if (!checkmate) goto endloop;
+			}
+			avail_moves.clear();
+		}
+	}
+	endloop:
+	std::cout << "Checkmate: " << checkmate << '\n';
+	return checkmate;
 }
 
 void Engine::runGameLoop() {
-	
-	if (initWindow()) {
-
-		initBoard();
-		loadImages();
-		resetGame();
-		quit = false;
-		while (!quit) {
-			drawGame();
-			pollEvents();
-		}
-	}
-
-	quitWindow();
 
 }
+
+bool Engine::gameOver() {
+	return quit;
+}
+
+bool Engine::getTurn() {
+	return turn;
+}
+
+Piece* Engine::getBoard() {
+	return board;
+}
+
+void Engine::switchTurn() {
+	turn = (turn ? black : white);
+}
+
+/*
+AI needs to work outside of engine 
+Run a 2-move loop until checkmate
+loop consists of a player move and an AI move
+*/
