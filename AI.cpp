@@ -18,6 +18,14 @@ int AI::evaluateBoard(Piece* board) {
 	for (int i = 0; i < 64; i++) {
 		score += pieceValue[board[i]];
 	}
+	if (_engine->detectCheck(white, board)) {
+		std::cout << "Detected check on white king\n";
+		score -= 50000;
+	}
+	if (_engine->detectCheck(black, board)) {
+		std::cout << "Detected check on black king\n";
+		score += 50000;
+	}
 	return score;
 }
 
@@ -32,36 +40,37 @@ int AI::evaluateMove(int oldSq, int newSq) {
 	return evaluateBoard(board2);
 }
 
-void AI::doMove(Piece* board) {
+void AI::doMove() {
+	int move[2] = { 0, 0 };
+	findMove(move);
+	_engine->makeMove(move[0], move[1]);
+	_engine->switchTurn();
+}
+
+void AI::findMove(int* move) {
+	Piece* board = _engine->getBoard();
 	std::vector<int> avail_moves;
 	int curMove = 0;
-	int bestMove = 10000 * (_side ? -2 : 1);
+	int bestMove = 200000 * (_side ? -2 : 1);
 	int bestI = 0;
 	int bestJ = 0;
 	avail_moves.clear();
 	for (int i = 0; i < 64; i++) {
 		if (board[i] >= (1 + 6 * _side) && board[i] <= (6 + 6 * _side)) {
-			std::cout << "i = " << i << '\n';
-			_engine->calcAvailMoves(i, avail_moves); // Get available moves for every piece on AI's side
+			_engine->calcAvailMoves(i, avail_moves, board); // Get available moves for every piece on AI's side
 			for (int j = 0; j < avail_moves.size(); j++) { // Loop through available moves
-				//if (i != avail_moves[j]) { // This shouldn't need to be here, but for some reason the AI keeps deleting its own rook by moving it from square 0 to square 0;
-					curMove = evaluateMove(i, avail_moves[j]); // Evaluate move value
-					if ((_side == white && curMove >= bestMove) || (_side == black && curMove <= bestMove)) {
-						bestMove = curMove;
-						bestI = i;
-						bestJ = avail_moves[j];
-					}
-				//}
+				curMove = evaluateMove(i, avail_moves[j]); // Evaluate move value
+				std::cout << "curMove = " << curMove << " at i = " << i << ", j = " << avail_moves[j] << '\n';
+				if ((_side == white && curMove >= bestMove) || (_side == black && curMove <= bestMove)) {
+					bestMove = curMove;
+					bestI = i;
+					bestJ = avail_moves[j];
+				}
 			}
 			avail_moves.clear();
 		}
 	}
-	std::cout << "Side = " << _side << '\n';
-	std::cout << "Detected best move with score " << bestMove << " at i = " << bestI << ", j = " << bestJ << '\n';
-	_engine->makeMove(bestI, bestJ);
-	_engine->switchTurn();
-}
-
-void AI::doMove(Piece* board, int step) {
-
+	std::cout << "Detected best move with score = " << bestMove << " at i = " << bestI << ", j = " << bestJ << '\n';
+	move[0] = bestI;
+	move[1] = bestJ;
 }

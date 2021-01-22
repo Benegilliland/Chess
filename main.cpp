@@ -5,7 +5,6 @@ int main(int argc, char** argv) {
 	Engine chess;
 	AI gameAI(black, &chess);
 	if (chess.initWindow()) {
-
 		chess.initBoard();
 		chess.loadImages();
 		chess.resetGame();
@@ -13,11 +12,10 @@ int main(int argc, char** argv) {
 			chess.drawGame();
 			chess.pollEvents();
 			if (gameAI.shouldMove()) {
-				gameAI.doMove(chess.getBoard(), 1);
+				gameAI.doMove();
 			}
 		}
 	}
-
 	chess.quitWindow();
 	return 0;
 }

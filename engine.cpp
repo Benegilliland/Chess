@@ -62,13 +62,11 @@ void Engine::resetGame() {
 	board[2] = board[5] = black_bishop;
 	board[3] = black_queen;
 	board[4] = black_king;
-	bKingPnt = 4;
 	board[56] = board[63] = white_rook;
 	board[57] = board[62] = white_knight;
 	board[58] = board[61] = white_bishop;
 	board[59] = white_queen;
 	board[60] = white_king;
-	wKingPnt = 60;
 	turn = white;
 	checkstate = no_check;
 	prevMove[0] = prevMove[1] = {};
@@ -110,11 +108,12 @@ void Engine::drawGame() {
 }
 
 void Engine::makeMove(int oldSquare, int newSquare) {
-	if (board[oldSquare] == black_king) bKingPnt = newSquare;
-	if (board[oldSquare] == white_king) wKingPnt = newSquare;
 	board[newSquare] = board[oldSquare];
 	board[oldSquare] = empty_square;
-	//turn = (turn ? black : white);
+	if (board[newSquare] == white_pawn && newSquare < 8) board[newSquare] = white_queen;
+	if (board[newSquare] == black_pawn && newSquare > 55) board[newSquare] = black_queen;
+	prevMove[0] = { (oldSquare % 8) * SQUARE_WIDTH, (int)(oldSquare / 8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
+	prevMove[1] = { (newSquare % 8) * SQUARE_WIDTH, (int)(newSquare / 8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
 }
 
 bool Engine::validateMove(int oldSquare, int newSquare) { // To add: make sure your move doesn't put you in check
@@ -129,14 +128,14 @@ bool Engine::validateMove(int oldSquare, int newSquare) { // To add: make sure y
 		if (checkstate = no_check) {
 			Piece piece = board[newSquare];
 			makeMove(oldSquare, newSquare);
-			canMove = !detectCheck(!turn);
+			canMove = !detectCheck(!turn, board);
 			makeMove(newSquare, oldSquare);
 			board[newSquare] = piece;
 		}
 		else {
 			Piece piece = board[newSquare];
 			makeMove(oldSquare, newSquare);
-			canMove = !detectCheck(turn);
+			canMove = !detectCheck(turn, board);
 			makeMove(newSquare, oldSquare);
 			board[newSquare] = piece;
 		}
@@ -157,8 +156,7 @@ void Engine::mDownEvent(SDL_Event& event) {
 	if ((turn && board[nSquare] > black_king) || (!turn && board[nSquare] <= black_king && board[nSquare] != empty_square)) {
 		highlighted_squares.push_back({ (int)(event.button.x / SQUARE_WIDTH) * SQUARE_WIDTH,
 			(int)(event.button.y / SQUARE_HEIGHT) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT });
-		calcAvailMoves(nSquare, avail_moves);
-		//showAvailMoves();
+		calcAvailMoves(nSquare, avail_moves, board);
 		dragging = true;
 		dragx = dragy = 0;
 		dragsq = nSquare;
@@ -171,15 +169,12 @@ void Engine::mUpEvent(SDL_Event& event) {
 		int oldSquare = rect.x / SQUARE_WIDTH + 8 * rect.y / SQUARE_HEIGHT;
 		int newSquare = (int)(event.button.x / SQUARE_WIDTH) + 8 * (int)(event.button.y / SQUARE_HEIGHT);
 		if (validateMove(oldSquare, newSquare)) {
-			prevMove[0] = { (oldSquare % 8) * SQUARE_WIDTH, (int)(oldSquare/8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
-			prevMove[1] = { (newSquare % 8) * SQUARE_WIDTH, (int)(newSquare / 8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
 			makeMove(oldSquare, newSquare);
 			switchTurn();
-			checkstate = detectCheck(turn) ? (turn ? white_check : black_check) : no_check;
+			checkstate = detectCheck(turn, board) ? (turn ? white_check : black_check) : no_check;
 			if (checkstate != no_check) {
 				detectCheckmate(turn);
 			}
-			//std::cout << "Evaluated board at: " << gameAI.evaluateBoard(board) << '\n';
 		}
 	}
 	dragging = false;
@@ -197,6 +192,9 @@ void Engine::pollEvents() {
 	SDL_Event event;
 	if (SDL_PollEvent(&event)) {
 		switch (event.type) {
+		case SDL_QUIT:
+			quit = true;
+			break;
 			case SDL_KEYDOWN:
 				keyDownEvent(event);
 				break;
@@ -213,7 +211,7 @@ void Engine::pollEvents() {
 	}
 }
 
-void Engine::calcStrMoves(int square, std::vector<int>& moves) {
+void Engine::calcStrMoves(int square, std::vector<int>& moves, Piece* board) {
 	if (board[square] != empty_square) {
 		bool white = board[square] > black_king;
 		int x = square % 8;
@@ -257,7 +255,7 @@ void Engine::calcStrMoves(int square, std::vector<int>& moves) {
 	}
 }
 
-void Engine::calcDiagMoves(int square, std::vector<int>& moves) {
+void Engine::calcDiagMoves(int square, std::vector<int>& moves, Piece* board) {
 	if (board[square] != empty_square) {
 		bool white = board[square] > black_king;
 		int x = square % 8;
@@ -305,29 +303,29 @@ void Engine::calcDiagMoves(int square, std::vector<int>& moves) {
 	}
 }
 
-void Engine::bPawnMoves(int square, std::vector<int>& moves) {
+void Engine::bPawnMoves(int square, std::vector<int>& moves, Piece* board) {
 	if (board[square + 8] == empty_square) moves.push_back(square + 8);
 	if ((int)(square / 8) == 1 && board[square + 8] == empty_square && board[square + 16] == empty_square) moves.push_back(square + 16);
 	if ((square % 8 != 0) && (board[square + 7] > black_king)) moves.push_back(square + 7);
 	if ((square % 8 != 7) && (board[square + 9] > black_king)) moves.push_back(square + 9);
 }
 
-void Engine::wPawnMoves(int square, std::vector<int>& moves) {
+void Engine::wPawnMoves(int square, std::vector<int>& moves, Piece* board) {
 	if (board[square - 8] == empty_square) moves.push_back(square - 8);
 	if ((int)(square / 8) == 6 && board[square - 8] == empty_square && board[square - 16] == empty_square) moves.push_back(square - 16);
 	if ((square % 8 != 7) && (board[square - 7] <= black_king && board[square - 7] != empty_square)) moves.push_back(square - 7);
 	if ((square % 8 != 0) && (board[square - 9] <= black_king && board[square - 9] != empty_square)) moves.push_back(square - 9);
 }
 
-void Engine::calcAvailMoves(int square, std::vector<int>& moves) {
+void Engine::calcAvailMoves(int square, std::vector<int>& moves, Piece* board) {
 	switch (board[square]) {
 	case empty_square:
 		break;
 	case black_pawn:
-		bPawnMoves(square, moves);
+		bPawnMoves(square, moves, board);
 		break;
 	case white_pawn:
-		wPawnMoves(square, moves);
+		wPawnMoves(square, moves, board);
 		break;
 	case black_knight:
 		if (square % 8 != 7 && square > 15 && (board[square - 15] > black_king || board[square - 15] == empty_square)) moves.push_back(square - 15);
@@ -351,16 +349,16 @@ void Engine::calcAvailMoves(int square, std::vector<int>& moves) {
 		break;
 	case black_bishop:
 	case white_bishop:
-		calcDiagMoves(square, moves);
+		calcDiagMoves(square, moves, board);
 		break;
 	case black_rook:
 	case white_rook:
-		calcStrMoves(square, moves);
+		calcStrMoves(square, moves, board);
 		break;
 	case black_queen:
 	case white_queen:
-		calcStrMoves(square, moves);
-		calcDiagMoves(square, moves);
+		calcStrMoves(square, moves, board);
+		calcDiagMoves(square, moves, board);
 		break;
 	case black_king:
 		if (square % 8 != 7 && (board[square + 1] == empty_square || board[square + 1] > black_king)) moves.push_back(square + 1);
@@ -391,20 +389,13 @@ void Engine::showAvailMoves() {
 	}
 }
 
-bool Engine::detectCheck(bool turn) {
-	//std::cout << "turn = " << turn << '\n';
-	avail_moves.clear();
-	//turn = !turn;
-	// Algorithm description:
-	// Calculate available moves for all "enemy pieces"
-	// Check whether king is in any of them
+bool Engine::detectCheck(bool turn, Piece* board) {
+	std::vector<int> avail_moves;
 	for (int i = 0; i < 64; i++) {
-		if (board[i] >= (7 - 6 * turn) && board[i] <= (12 + 6 * turn)) {
-			//std::cout << "testing piece " << i << '\n';
-			calcAvailMoves(i, avail_moves);
-			//std::cout << "available moves: " << avail_moves.size() << '\n';
-			for (int j = 0; j < avail_moves.size(); j++) { // If it's attacking king
-				if (avail_moves[j] == (turn ? wKingPnt : bKingPnt)) {
+		if (board[i] >= (7 - 6 * turn) && board[i] <= (13 - 6 * turn)) {
+			calcAvailMoves(i, avail_moves, board);
+			for (int j = 0; j < avail_moves.size(); j++) {
+				if (avail_moves[j] == findKing(turn, board)) {
 					std::cout << "King is in check at i = " << i << ", j = " << avail_moves[j] << '\n';
 					checkstate = (turn ? white_check : black_check);
 					avail_moves.clear();
@@ -426,7 +417,7 @@ bool Engine::detectCheckmate(bool turn) {
 	bool turncopy = turn;
 	for (int i = 0; i < 64; i++) {
 		if (board[i] >= (1 + 6 * turncopy) && board[i] <= (7 + 6*turncopy)) { // If piece is same as the one in check
-			calcAvailMoves(i, avail_moves); 	// Calculate available moves
+			calcAvailMoves(i, avail_moves, board); 	// Calculate available moves
 			avail_moves_copy = avail_moves;
 			//std::cout << "avail_moves.size() = " << avail_moves.size() << '\n';
 			for (int j = 0; j < avail_moves_copy.size(); j++) { // Loop through every available move
@@ -434,7 +425,7 @@ bool Engine::detectCheckmate(bool turn) {
 				//std::cout << "Testing move: i = " << i << ", j = " << avail_moves_copy[j] << '\n';
 				piece = board[avail_moves_copy[j]];
 				makeMove(i, avail_moves_copy[j]);
-				if (!detectCheck(turncopy)) {
+				if (!detectCheck(turncopy, board)) {
 					checkmate = false;
 					std::cout << "found escape move: i = "  << i << ", j = " << avail_moves_copy[j] << '\n';
 				}
@@ -468,6 +459,30 @@ Piece* Engine::getBoard() {
 
 void Engine::switchTurn() {
 	turn = (turn ? black : white);
+}
+
+void Engine::promoteQueen(int square) {
+	if (board[square] == white_pawn) board[square] = white_queen;
+	if (board[square] == black_queen) board[square] = black_queen;
+}
+
+int Engine::findKing(bool turn, Piece* board) {
+	for (int i = 0; i < 64; i++) {
+		if ((turn == white && board[i] == white_king) || (turn == black && board[i] == black_king)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+void Engine::printBoard(Piece* board) {
+	std::cout << '\n';
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			std::cout << (Piece)board[i * 8 + j] << "\t";
+		}
+		std::cout << '\n';
+	}
 }
 
 /*

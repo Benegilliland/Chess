@@ -36,7 +36,6 @@ class Engine {
 	Turn turn;
 	bool dragging = false;
 	int dragx, dragy, dragsq;
-	int wKingPnt, bKingPnt;
 	Checkstate checkstate;
 
 public:
@@ -48,23 +47,28 @@ public:
 	void drawGame();
 	void pollEvents();
 	void resetGame();
-	bool detectCheck(bool turn);
+	bool detectCheck(bool turn, Piece* board);
 	bool detectCheckmate(bool turn);
-	void calcAvailMoves(int square, std::vector<int>& moves);
+	void calcAvailMoves(int square, std::vector<int>& moves, Piece* board);
 	void showAvailMoves();
 	void makeMove(int oldSquare, int newSquare);
 	bool validateMove(int oldSquare, int newSquare);
-	void calcDiagMoves(int square, std::vector<int>& moves);
-	void calcStrMoves(int square, std::vector<int>& moves);
+	void calcDiagMoves(int square, std::vector<int>& moves, Piece* board);
+	void calcStrMoves(int square, std::vector<int>& moves, Piece* board);
 	void mDownEvent(SDL_Event& event);
 	void mUpEvent(SDL_Event& event);
 	void mMotionEvent(SDL_Event& event);
 	void keyDownEvent(SDL_Event& event);
-	void bPawnMoves(int square, std::vector<int>& moves);
-	void wPawnMoves(int square, std::vector<int>& moves);
-	void knightMoves(int square);
+	void bPawnMoves(int square, std::vector<int>& moves, Piece* board);
+	void wPawnMoves(int square, std::vector<int>& moves, Piece* board);
+	void knightMoves(int square, std::vector<int>& moves, Piece* board);
+	int findKing(bool turn, Piece* board);
 	bool gameOver();
 	bool getTurn();
 	void switchTurn();
 	Piece* getBoard();
+	void promoteQueen(int square);
+	void promoteBishop(int square);
+	void promoteKnight(int square);
+	void printBoard(Piece* board);
 };
