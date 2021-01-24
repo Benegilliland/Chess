@@ -10,22 +10,16 @@ enum Piece {
 	white_pawn, white_knight, white_bishop, white_rook, white_queen, white_king
 };
 
-enum Checkstate {
-	no_check, black_check, white_check, black_checkmate, white_checkmate
-};
-
-enum Turn {
-	black = false, white = true
-};
-
 struct Move {
 	int sq[2];
 };
 
 class Engine {
+
+	// GUI
 	const char* WINDOW_TITLE = "Chess";
-	const int SQUARE_WIDTH = 80;
-	const int SQUARE_HEIGHT = 80;
+	const int SQUARE_WIDTH = 100;
+	const int SQUARE_HEIGHT = 100;
 	SDL_Window* window = NULL;
 	SDL_Renderer* renderer = NULL;
 	SDL_Rect white_squares[32];
@@ -34,46 +28,64 @@ class Engine {
 	std::vector<SDL_Rect> highlighted_squares;
 	SDL_Texture* image;
 	SDL_Rect pieces[12];
+	SDL_Rect dstrect[64];
+	char dragSq;
+	SDL_Rect pawnPromotionWindow[4];
+	bool promotingPawn;
+	char promotingSquare;
+
+	// Engine
 	Piece board[64];
 	bool quit;
 	std::vector<int> avail_moves;
-	Turn turn;
-	bool dragging = false;
-	int dragx, dragy, dragsq;
-	Checkstate checkstate;
+	bool turn; // True => white's turn, false => black's turn
+	bool wChk, bChk, wMt, bMt, stlMt; // White check, black check, white checkmate, black checkmate, stalemate
+	Move wEnPass[2], bEnPass[2]; // Stores the available en passant move(s), a maximum of 2 per side
+	bool enPassMove; // Whether the player is moving en passant
+	bool wCanCstl[2], bCanCstl[2]; // Whether each player can castle, [0] = queenside and [1] = kingside
 
 public:
-	void runGameLoop();
+
+	// GUI
 	bool initWindow();
 	void quitWindow();
 	void initBoard();
-	void loadImages();
 	void drawGame();
 	void pollEvents();
+	void openPromotionWindow(int square);
+	void closePromotionWindow();
+
+	// Engine
 	void resetGame();
-	bool detectCheck(bool turn, Piece* board);
-	bool detectCheckmate(bool turn);
-	void calcAvailMoves(int square, std::vector<int>& moves, Piece* board);
+	bool detectCheck(bool turn);
+	bool detectCheck(bool turn, Move move);
+	void detectMate(bool turn);
+	void calcPawnMoves(int square, std::vector<int>& moves, bool white);
+	void calcKnightMoves(int square, std::vector<int>& moves, bool white);
+	void calcBishMoves(int square, std::vector<int>& moves, bool white);
+	void calcRookMoves(int square, std::vector<int>& moves, bool white);
+	void calcQueenMoves(int square, std::vector<int>& moves, bool white);
+	void calcKingMoves(int square, std::vector<int>& moves, bool white);
+	void addCastlingMoves(int square, std::vector<int>& moves);
+	void calcAvailMoves(int square, std::vector<int>& moves);
 	void showAvailMoves();
-	void makeMove(int oldSquare, int newSquare);
 	bool validateMove(int oldSquare, int newSquare);
-	void calcDiagMoves(int square, std::vector<int>& moves, Piece* board);
-	void calcStrMoves(int square, std::vector<int>& moves, Piece* board);
+	void movePiece(int oldSquare, int newSquare);
+	void unmovePiece(int oldSquare, int newSquare, Piece p);
 	void mDownEvent(SDL_Event& event);
 	void mUpEvent(SDL_Event& event);
 	void mMotionEvent(SDL_Event& event);
 	void keyDownEvent(SDL_Event& event);
-	void bPawnMoves(int square, std::vector<int>& moves, Piece* board);
-	void wPawnMoves(int square, std::vector<int>& moves, Piece* board);
-	void knightMoves(int square, std::vector<int>& moves, Piece* board);
 	int findKing(bool turn, Piece* board);
 	bool gameOver();
 	bool getTurn();
 	void switchTurn();
 	Piece* getBoard();
-	void promoteQueen(int square);
-	void promoteBishop(int square);
-	void promoteKnight(int square);
+	void pawnPromotion(int square, int choice);
 	void printBoard(Piece* board);
-	void findAvailableMoves(Turn turn, std::vector<Move> preMoves, std::vector<Move>& moves);
+	void findAvailableMoves(bool turn, std::vector<Move> preMoves, std::vector<Move>& moves);
+	void findAvailableMoves(bool turn, std::vector<Move>& moves);
+	bool canCastle(bool turn, bool side);
+	void makePlayerMove(int oldSquare, int newSquare);
+
 };

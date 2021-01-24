@@ -10,10 +10,10 @@ int AI::evaluateBoard() {
 	for (int i = 0; i < 64; i++) {
 		score += pieceValue[board[i]];
 	}
-	if (_engine->detectCheck(white, board)) {
+	if (_engine->detectCheck(true)) {
 		score -= 50000;
 	}
-	if (_engine->detectCheck(black, board)) {
+	if (_engine->detectCheck(false)) {
 		score += 50000;
 	}
 	counter++;
@@ -43,7 +43,7 @@ int AI::findMoveRecursive(char step, std::vector<Move> preMoves) {
 	int bestScore;
 	int curScore;
 	//bMove.push_back({ 0,0 });
-	_engine->findAvailableMoves((_side+step)%2?black:white, preMoves, moves);
+	_engine->findAvailableMoves((_side+step)%2?false:true, preMoves, moves);
 	if (step == nSteps) {
 		bestScore = 200000 * (((int)_side + step) % 2 ? 1 : -1);
 		for (auto& i : moves) {
@@ -78,7 +78,7 @@ void AI::doMove() {
     findMoveRecursive(1, moves);
 	std::cout << "Checked " << counter << " moves\n";
 	moves.clear();
-	_engine->makeMove(bMove[0].sq[0], bMove[0].sq[1]);
+	_engine->movePiece(bMove[0].sq[0], bMove[0].sq[1]);
 	_engine->switchTurn();
 }
 

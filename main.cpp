@@ -3,17 +3,16 @@
 
 int main(int argc, char** argv) {
 	Engine chess;
-	AI gameAI(black, &chess);
+	AI gameAI(false, &chess);
 	if (chess.initWindow()) {
 		chess.initBoard();
-		chess.loadImages();
 		chess.resetGame();
 		while (!chess.gameOver()) {
 			chess.drawGame();
 			chess.pollEvents();
-			if (gameAI.shouldMove()) {
+			/*if (gameAI.shouldMove()) {
 				gameAI.doMove();
-			}
+			}*/
 		}
 	}
 	chess.quitWindow();
