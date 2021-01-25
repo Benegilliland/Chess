@@ -1,78 +1,63 @@
-/*
-To add:
-- add better highlighting, with different colours
-- improve code
-- significantly optimise code
-	the AI calls each of these functions millions of times per game, so even a fraction of a second will make a huge difference
-
- - Validate whether move is legal (e.g. doesn't put you in check) before giving it to AI , thus hugely saving on computation time
-
- - Recode the board to use my own 4-bit (or 5-bit) data type, with one bit representing black or white
- - This gives 16 possible values when we need 13. We can use the other 3 in clever ways e.g. storing an en passant pawn, castling or pawn promotion etc.
-Bugs:
-*/
-
 #include "engine.h"
 
 void Engine::resetGame() {
 	for (int i = 0; i < 8; i++) {
 		for (int j = 2; j < 6; j++) {
-			board[8 * j + i] = empty_square;
+			board.b[8 * j + i] = EMPTY;
 		}
-		board[8 + i] = black_pawn;
-		board[48 + i] = white_pawn;
+		board.b[8 + i] = BLACK_PAWN;
+		board.b[48 + i] = WHITE_PAWN;
 	}
-	board[0] = board[7] = black_rook;
-	board[1] = board[6] = black_knight;
-	board[2] = board[5] = black_bishop;
-	board[3] = black_queen;
-	board[4] = black_king;
-	board[56] = board[63] = white_rook;
-	board[57] = board[62] = white_knight;
-	board[58] = board[61] = white_bishop;
-	board[59] = white_queen;
-	board[60] = white_king;
-	turn = true;
-	wChk = bChk = false;
+	board.b[0] = board.b[7] = BLACK_ROOK;
+	board.b[1] = board.b[6] = BLACK_KNIGHT;
+	board.b[2] = board.b[5] = BLACK_BISHOP;
+	board.b[3] = BLACK_QUEEN;
+	board.b[4] = BLACK_KING;
+	board.bKingPnt = 4;
+	board.b[56] = board.b[63] = WHITE_ROOK;
+	board.b[57] = board.b[62] = WHITE_KNIGHT;
+	board.b[58] = board.b[61] = WHITE_BISHOP;
+	board.b[59] = WHITE_QUEEN;
+	board.b[60] = WHITE_KING;
+	board.wKingPnt = 60;
+	board.turn = true;
+	board.wChk = board.bChk = false;
 	prevMove[0] = prevMove[1] = {};
-	wEnPass[0] = bEnPass[0] = {};
-	wEnPass[1] = bEnPass[1] = {};
-	enPassMove = false;
+	board.wEnPass[0] = board.bEnPass[0] = {};
+	board.wEnPass[1] = board.bEnPass[1] = {};
+	board.enPassMove = false;
 	promotingPawn = false;
-	wCanCstl[0] = wCanCstl[1] = bCanCstl[0] = bCanCstl[1] = true;
+	board.wCanCstl[0] = board.wCanCstl[1] = board.bCanCstl[0] = board.bCanCstl[1] = true;
 }
 
-void Engine::movePiece(int oldSquare, int newSquare) {
-	board[newSquare] = board[oldSquare];
-	board[oldSquare] = empty_square;
+void Engine::movePiece(Move move) {
+	board.b[move.newSq] = board.b[move.oldSq];
+	board.b[move.oldSq] = EMPTY;
+	if (board.b[move.newSq] == WHITE_KING) board.wKingPnt = move.newSq;
+	else if (board.b[move.newSq] == BLACK_KING) board.bKingPnt = move.newSq;
 }
 
-void Engine::unmovePiece(int oldSquare, int newSquare, Piece p) {
-	board[newSquare] = board[oldSquare];
-	board[oldSquare] = p;
-}
-
-bool Engine::validateMove(int oldSquare, int newSquare) {
+bool Engine::validateMove(Move move) {
 	bool canMove = false;
-	bool white = board[oldSquare] > black_king;
+	bool white = board.b[move.oldSq] > BLACK_KING;
 	for (int i = 0; i < avail_moves.size(); i++) {
-		if (avail_moves[i] == newSquare) {
+		if (avail_moves[i] == move.newSq) {
 			canMove = true;
 			break;
 		}
 	}
 	if (canMove) {
-		canMove = !detectCheck(turn, { oldSquare, newSquare });
+		canMove = !detectCheck(board.turn, move);
 	}
 	return canMove;
 }
 
-void Engine::calcRookMoves(int square, std::vector<int>& moves, bool white) {
+void Engine::calcRookMoves(char square, std::vector<char>& moves, bool white) {
 		int x = square % 8;
 		int y = (int)(square / 8);
 		for (int i = 1; i < 8 - x; i++) {
-			if (board[square + i] != empty_square) {
-				if ((white && board[square + i] <= black_king) || (!white && board[square + i] > black_king)) moves.push_back(square + i);
+			if (board.b[square + i] != EMPTY) {
+				if ((white && board.b[square + i] <= BLACK_KING) || (!white && board.b[square + i] > BLACK_KING)) moves.push_back(square + i);
 				break;
 			}
 			else {
@@ -80,8 +65,8 @@ void Engine::calcRookMoves(int square, std::vector<int>& moves, bool white) {
 			}
 		}
 		for (int i = 1; i < (x + 1); i++) {
-			if (board[square - i] != empty_square) {
-				if ((white && board[square - i] <= black_king) || (!white && board[square - i] > black_king)) moves.push_back(square - i);
+			if (board.b[square - i] != EMPTY) {
+				if ((white && board.b[square - i] <= BLACK_KING) || (!white && board.b[square - i] > BLACK_KING)) moves.push_back(square - i);
 				break;
 			}
 			else {
@@ -89,8 +74,8 @@ void Engine::calcRookMoves(int square, std::vector<int>& moves, bool white) {
 			}
 		}
 		for (int i = 1; i < 8 - y; i++) {
-			if (board[square + 8*i] != empty_square) {
-				if ((white && board[square + 8*i] <= black_king) || (!white && board[square + 8*i] > black_king)) moves.push_back(square + 8*i);
+			if (board.b[square + 8*i] != EMPTY) {
+				if ((white && board.b[square + 8*i] <= BLACK_KING) || (!white && board.b[square + 8*i] > BLACK_KING)) moves.push_back(square + 8*i);
 				break;
 			}
 			else {
@@ -98,8 +83,8 @@ void Engine::calcRookMoves(int square, std::vector<int>& moves, bool white) {
 			}
 		}
 		for (int i = 1; i < (y + 1); i++) {
-			if (board[square - 8*i] != empty_square) {
-				if ((white && board[square - 8*i] <= black_king) || (!white && board[square - 8*i] > black_king)) moves.push_back(square - 8*i);
+			if (board.b[square - 8*i] != EMPTY) {
+				if ((white && board.b[square - 8*i] <= BLACK_KING) || (!white && board.b[square - 8*i] > BLACK_KING)) moves.push_back(square - 8*i);
 				break;
 			}
 			else {
@@ -108,13 +93,13 @@ void Engine::calcRookMoves(int square, std::vector<int>& moves, bool white) {
 		}
 }
 
-void Engine::calcBishMoves(int square, std::vector<int>& moves, bool white) {
+void Engine::calcBishMoves(char square, std::vector<char>& moves, bool white) {
 		int x = square % 8;
 		int y = (int)(square / 8);
 			// Up-left
 			for (int i = 1; i < std::min(x,y)+1; i++) {
-				if (board[square - 9 * i] != empty_square) {
-					if ((white && board[square - 9 * i] <= black_king) || (!white && (board[square - 9*i] == empty_square || board[square - 9*i] > black_king))) moves.push_back(square - 9 * i);
+				if (board.b[square - 9 * i] != EMPTY) {
+					if ((white && board.b[square - 9 * i] <= BLACK_KING) || (!white && (board.b[square - 9*i] == EMPTY || board.b[square - 9*i] > BLACK_KING))) moves.push_back(square - 9 * i);
 					break;
 				}
 				else {
@@ -123,8 +108,8 @@ void Engine::calcBishMoves(int square, std::vector<int>& moves, bool white) {
 			}
 			// Up-right
 			for (int i = 1; i < std::min((7-x), y) + 1; i++) {
-				if (board[square - 7 * i] != empty_square) {
-					if ((white && board[square - 7 * i] <= black_king) || (!white && (board[square - 7 * i] == empty_square || board[square - 7 * i] > black_king))) moves.push_back(square - 7 * i);
+				if (board.b[square - 7 * i] != EMPTY) {
+					if ((white && board.b[square - 7 * i] <= BLACK_KING) || (!white && (board.b[square - 7 * i] == EMPTY || board.b[square - 7 * i] > BLACK_KING))) moves.push_back(square - 7 * i);
 					break;
 				}
 				else {
@@ -133,8 +118,8 @@ void Engine::calcBishMoves(int square, std::vector<int>& moves, bool white) {
 			}
 			// Down left
 			for (int i = 1; i < std::min(x, (7-y)) + 1; i++) {
-				if (board[square + 7 * i] > empty_square) {
-					if ((white && board[square + 7 * i] <= black_king) || (!white && (board[square + 7 * i] == empty_square || board[square + 7 * i] > black_king))) moves.push_back(square + 7 * i);
+				if (board.b[square + 7 * i] > EMPTY) {
+					if ((white && board.b[square + 7 * i] <= BLACK_KING) || (!white && (board.b[square + 7 * i] == EMPTY || board.b[square + 7 * i] > BLACK_KING))) moves.push_back(square + 7 * i);
 					break;
 				}
 				else {
@@ -143,8 +128,8 @@ void Engine::calcBishMoves(int square, std::vector<int>& moves, bool white) {
 			}
 			// Down right
 			for (int i = 1; i < std::min((7-x), (7 - y)) + 1; i++) {
-				if (board[square + 9 * i] > empty_square) {
-					if ((white && board[square + 9 * i] <= black_king) || (!white && (board[square + 9 * i] == empty_square || board[square + 9 * i] > black_king))) moves.push_back(square + 9 * i);
+				if (board.b[square + 9 * i] > EMPTY) {
+					if ((white && board.b[square + 9 * i] <= BLACK_KING) || (!white && (board.b[square + 9 * i] == EMPTY || board.b[square + 9 * i] > BLACK_KING))) moves.push_back(square + 9 * i);
 					break;
 				}
 				else {
@@ -153,52 +138,52 @@ void Engine::calcBishMoves(int square, std::vector<int>& moves, bool white) {
 			}
 }
 
-void Engine::calcPawnMoves(int square, std::vector<int>& moves, bool white) {
-	if (board[square + (white?-8:8)] == empty_square) moves.push_back(square + (white?-8:8));
-	if ((int)(square / 8) == (white?6:1) && board[square + (white?-8:8)] == empty_square && board[square + (white ? -16 : 16)] == empty_square) moves.push_back(square + (white ? -16 : 16));
-	if ((square % 8 != 7) && (board[square + (white ? -7 : 9)] <= (white?6:12) && board[square + (white ? -7 : 9)] > (white?0:6))) moves.push_back(square + (white ? -7 : 9));
-	if ((square % 8 != 0) && (board[square + (white ? -9 : 7)] <= (white ? 6 : 12) && board[square + (white ? -9 : 7)] > (white ? 0 : 6))) moves.push_back(square + (white ? -9: 7));
+void Engine::calcPawnMoves(char square, std::vector<char>& moves, bool white) {
+	if (board.b[square + (white?-8:8)] == EMPTY) moves.push_back(square + (white?-8:8));
+	if ((int)(square / 8) == (white?6:1) && board.b[square + (white?-8:8)] == EMPTY && board.b[square + (white ? -16 : 16)] == EMPTY) moves.push_back(square + (white ? -16 : 16));
+	if ((square % 8 != 7) && (board.b[square + (white ? -7 : 9)] <= (white?6:12) && board.b[square + (white ? -7 : 9)] > (white?0:6))) moves.push_back(square + (white ? -7 : 9));
+	if ((square % 8 != 0) && (board.b[square + (white ? -9 : 7)] <= (white ? 6 : 12) && board.b[square + (white ? -9 : 7)] > (white ? 0 : 6))) moves.push_back(square + (white ? -9: 7));
 	if (white) { // En passant moves
-		if (wEnPass[0].sq[0] == square) moves.push_back(wEnPass[0].sq[1]);
-		if (wEnPass[1].sq[0] == square) moves.push_back(wEnPass[1].sq[1]);
+		if (board.wEnPass[0].oldSq == square) moves.push_back(board.wEnPass[0].newSq);
+		if (board.wEnPass[1].oldSq == square) moves.push_back(board.wEnPass[1].newSq);
 	}
 	else {
-		if (bEnPass[0].sq[0] == square) moves.push_back(bEnPass[0].sq[1]);
-		if (bEnPass[1].sq[0] == square) moves.push_back(bEnPass[1].sq[1]);
+		if (board.bEnPass[0].oldSq == square) moves.push_back(board.bEnPass[0].newSq);
+		if (board.bEnPass[1].oldSq == square) moves.push_back(board.bEnPass[1].newSq);
 	}
 }
 
-void Engine::calcKnightMoves(int square, std::vector<int>& moves, bool white) {
-	if (square % 8 != 7 && square > 15 && !(board[square - 15] > (white?6:0) && board[square - 15] <= (white ? 12 : 6))) moves.push_back(square - 15);
-	if (square % 8 < 6 && square > 6 && !(board[square - 6] > (white ? 6 : 0) && board[square - 6] <= (white ? 12 : 6))) moves.push_back(square - 6);
-	if (square % 8 != 0 && square > 16 && !(board[square - 17] > (white ? 6 : 0) && board[square - 17] <= (white ? 12 : 6))) moves.push_back(square - 17);
-	if (square % 8 > 1 && square > 8 && !(board[square - 10] > (white ? 6 : 0) && board[square - 10] <= (white ? 12 : 6))) moves.push_back(square - 10);
-	if (square % 8 != 7 && square < 46 && !(board[square + 17] > (white ? 6 : 0) && board[square + 17] <= (white ? 12 : 6))) moves.push_back(square + 17);
-	if (square % 8 < 6 && square < 53 && !(board[square + 10] > (white ? 6 : 0) && board[square + 10] <= (white ? 12 : 6))) moves.push_back(square + 10);
-	if (square % 8 != 0 && square < 48 && !(board[square + 15] > (white ? 6 : 0) && board[square + 15] <= (white ? 12 : 6))) moves.push_back(square + 15);
-	if (square % 8 > 1 && square < 57 && !(board[square + 6] > (white ? 6 :0) && board[square + 6] <= (white ? 12 : 6))) moves.push_back(square + 6);
+void Engine::calcKnightMoves(char square, std::vector<char>& moves, bool white) {
+	if (square % 8 != 7 && square > 15 && !(board.b[square - 15] > (white?6:0) && board.b[square - 15] <= (white ? 12 : 6))) moves.push_back(square - 15);
+	if (square % 8 < 6 && square > 6 && !(board.b[square - 6] > (white ? 6 : 0) && board.b[square - 6] <= (white ? 12 : 6))) moves.push_back(square - 6);
+	if (square % 8 != 0 && square > 16 && !(board.b[square - 17] > (white ? 6 : 0) && board.b[square - 17] <= (white ? 12 : 6))) moves.push_back(square - 17);
+	if (square % 8 > 1 && square > 8 && !(board.b[square - 10] > (white ? 6 : 0) && board.b[square - 10] <= (white ? 12 : 6))) moves.push_back(square - 10);
+	if (square % 8 != 7 && square < 46 && !(board.b[square + 17] > (white ? 6 : 0) && board.b[square + 17] <= (white ? 12 : 6))) moves.push_back(square + 17);
+	if (square % 8 < 6 && square < 53 && !(board.b[square + 10] > (white ? 6 : 0) && board.b[square + 10] <= (white ? 12 : 6))) moves.push_back(square + 10);
+	if (square % 8 != 0 && square < 48 && !(board.b[square + 15] > (white ? 6 : 0) && board.b[square + 15] <= (white ? 12 : 6))) moves.push_back(square + 15);
+	if (square % 8 > 1 && square < 57 && !(board.b[square + 6] > (white ? 6 :0) && board.b[square + 6] <= (white ? 12 : 6))) moves.push_back(square + 6);
 }
 
-void Engine::calcQueenMoves(int square, std::vector<int>& moves, bool white) {
+void Engine::calcQueenMoves(char square, std::vector<char>& moves, bool white) {
 	calcRookMoves(square, moves, white);
 	calcBishMoves(square, moves, white);
 }
 
-void Engine::calcKingMoves(int square, std::vector<int>& moves, bool white) {
+void Engine::calcKingMoves(char square, std::vector<char>& moves, bool white) {
 	int x = square % 8;
 	int y = square / 8;
-	if (x != 7 && !(board[square + 1] > (white ? 6 : 0) && board[square + 1] <= (white ? 12 : 6))) moves.push_back(square + 1);
-	if (x != 0 && !(board[square - 1] > (white ? 6 : 0) && board[square - 1] <= (white ? 12 : 6))) moves.push_back(square - 1);
-	if (y < 7 && !(board[square + 8] > (white ? 6 : 0) && board[square + 8] <= (white ? 12 : 6))) moves.push_back(square + 8);
-	if (y > 0 && !(board[square - 8] > (white ? 6 : 0) && board[square - 8] <= (white ? 12 : 6))) moves.push_back(square - 8);
-	if (x != 0 && y != 0 && !(board[square - 9] > (white ? 6 : 0) && board[square - 9] <= (white ? 12 : 6))) moves.push_back(square - 9);
-	if (x != 7 && y != 0 && !(board[square - 7] > (white ? 6 : 0) && board[square - 7] <= (white ? 12 : 6))) moves.push_back(square - 7);
-	if (x != 0 && y != 7 && !(board[square + 7] > (white ? 6 : 0) && board[square + 7] <= (white ? 12 : 6))) moves.push_back(square + 7);
-	if (x != 7 && y != 7 && !(board[square + 9] > (white ? 6 : 0) && board[square + 9] <= (white ? 12 : 6))) moves.push_back(square + 9);
+	if (x != 7 && !(board.b[square + 1] > (white ? 6 : 0) && board.b[square + 1] <= (white ? 12 : 6))) moves.push_back(square + 1);
+	if (x != 0 && !(board.b[square - 1] > (white ? 6 : 0) && board.b[square - 1] <= (white ? 12 : 6))) moves.push_back(square - 1);
+	if (y < 7 && !(board.b[square + 8] > (white ? 6 : 0) && board.b[square + 8] <= (white ? 12 : 6))) moves.push_back(square + 8);
+	if (y > 0 && !(board.b[square - 8] > (white ? 6 : 0) && board.b[square - 8] <= (white ? 12 : 6))) moves.push_back(square - 8);
+	if (x != 0 && y != 0 && !(board.b[square - 9] > (white ? 6 : 0) && board.b[square - 9] <= (white ? 12 : 6))) moves.push_back(square - 9);
+	if (x != 7 && y != 0 && !(board.b[square - 7] > (white ? 6 : 0) && board.b[square - 7] <= (white ? 12 : 6))) moves.push_back(square - 7);
+	if (x != 0 && y != 7 && !(board.b[square + 7] > (white ? 6 : 0) && board.b[square + 7] <= (white ? 12 : 6))) moves.push_back(square + 7);
+	if (x != 7 && y != 7 && !(board.b[square + 9] > (white ? 6 : 0) && board.b[square + 9] <= (white ? 12 : 6))) moves.push_back(square + 9);
 }
 
-void Engine::addCastlingMoves(int square, std::vector<int>& moves) {
-	if (board[square] == white_king) {
+void Engine::addCastlingMoves(char square, std::vector<char>& moves) {
+	if (board.b[square] == WHITE_KING) {
 		if (canCastle(true, false)) moves.push_back(58);
 		if (canCastle(true, true)) moves.push_back(62);
 	}
@@ -208,44 +193,44 @@ void Engine::addCastlingMoves(int square, std::vector<int>& moves) {
 	}
 }
 
-void Engine::calcAvailMoves(int square, std::vector<int>& moves) {
-	switch (board[square]) {
-	case empty_square:
+void Engine::calcAvailMoves(char square, std::vector<char>& moves) {
+	switch (board.b[square]) {
+	case EMPTY:
 		break;
-	case black_pawn:
+	case BLACK_PAWN:
 		calcPawnMoves(square, moves, false);
 		break;
-	case white_pawn:
+	case WHITE_PAWN:
 		calcPawnMoves(square, moves, true);
 		break;
-	case black_knight:
+	case BLACK_KNIGHT:
 		calcKnightMoves(square, moves, false);
 		break;
-	case white_knight:
+	case WHITE_KNIGHT:
 		calcKnightMoves(square, moves, true);
 		break;
-	case black_bishop:
+	case BLACK_BISHOP:
 		calcBishMoves(square, moves, false);
 		break;
-	case white_bishop:
+	case WHITE_BISHOP:
 		calcBishMoves(square, moves, true);
 		break;
-	case black_rook:
+	case BLACK_ROOK:
 		calcRookMoves(square, moves, false);
 		break;
-	case white_rook:
+	case WHITE_ROOK:
 		calcRookMoves(square, moves, true);
 		break;
-	case black_queen:
+	case BLACK_QUEEN:
 		calcQueenMoves(square, moves, false);
 		break;
-	case white_queen:
+	case WHITE_QUEEN:
 		calcQueenMoves(square, moves, true);
 		break;
-	case black_king:
+	case BLACK_KING:
 		calcKingMoves(square, moves, false);
 		break;
-	case white_king:
+	case WHITE_KING:
 		calcKingMoves(square, moves, true);
 		break;
 	}
@@ -258,13 +243,13 @@ void Engine::showAvailMoves() {
 }
 
 bool Engine::detectCheck(bool turn) {
-	std::vector<int> avail_moves;
+	std::vector<char> avail_moves;
 	for (int i = 0; i < 64; i++) {
-		if (board[i] >= (7 - 6 * turn) && board[i] <= (13 - 6 * turn)) {
+		if (board.b[i] >= (7 - 6 * board.turn) && board.b[i] <= (12 - 6 * board.turn)) {
 			calcAvailMoves(i, avail_moves);
 			for (int j = 0; j < avail_moves.size(); j++) {
-				if (avail_moves[j] == findKing(turn, board)) {
-					std::cout << "King is in check at i = " << i << ", j = " << avail_moves[j] << '\n';
+				if (avail_moves[j] == (turn ? board.wKingPnt : board.bKingPnt)) {
+					//std::cout << "King is in check at i = " << i << ", j = " << avail_moves[j] << '\n';
 					return true;
 				}
 			}
@@ -276,32 +261,22 @@ bool Engine::detectCheck(bool turn) {
 
 bool Engine::detectCheck(bool turn, Move move) {
 	bool detectedCheck;
-	Piece piece = board[move.sq[1]];
-	movePiece(move.sq[0], move.sq[1]);
+	char piece = board.b[move.newSq];
+	movePiece(move);
 	detectedCheck = detectCheck(turn);
-	movePiece(move.sq[1], move.sq[0]);
-	board[move.sq[1]] = piece;
+	movePiece({ move.newSq, move.oldSq });
+	board.b[move.newSq] = piece;
 	return detectedCheck;
 }
 
-void Engine::detectMate(bool turn) {
+bool Engine::detectMate(bool turn) {
 	std::vector<Move> moves;
 	findAvailableMoves(turn, moves);
-	int counter = 0;
-	for (auto& i : moves) {
-		if (!detectCheck(turn, i)) {
-			counter++;
-		}
+	//std::cout << "Found " << moves.size() << " valid moves\n";
+	if (moves.size() == 0) {
+		return true;
 	}
-	std::cout << "Found " << counter <<  " valid moves\n";
-	if (counter == 0) {
-		if ((turn ? wChk : bChk)) {
-			std::cout << "Checkmate on " << (turn ? "white" : "black") << '\n';
-		}
-		else {
-			std::cout << "Stalemate\n";
-		}
-	}
+	return false;
 }
 
 bool Engine::gameOver() {
@@ -309,43 +284,26 @@ bool Engine::gameOver() {
 }
 
 bool Engine::getTurn() {
-	return turn;
+	return board.turn;
 }
 
-Piece* Engine::getBoard() {
-	return board;
+char* Engine::getBoard() {
+	return board.b;
 }
 
 void Engine::switchTurn() {
-	turn = !turn;
-}
-
-int Engine::findKing(bool turn, Piece* board) { // Going back to original idea of king pointers would be much more efficient
-	for (int i = 0; i < 64; i++) {
-		if ((turn && board[i] == white_king) || (!turn && board[i] == black_king)) {
-			return i;
-		}
-	}
-	return -1;
-}
-
-void Engine::printBoard(Piece* board) {
-	std::cout << '\n';
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			std::cout << (Piece)board[i * 8 + j] << "\t";
-		}
-		std::cout << '\n';
-	}
+	board.turn = !board.turn;
 }
 
 void Engine::findAvailableMoves(bool turn, std::vector<Move>& moves) {
-	std::vector<int> avail_moves;
-	for (int i = 0; i < 64; i++) {
-		if (board[i] >= (1 + 6 * turn) && board[i] <= (6 + 6 * turn)) {
+	std::vector<char> avail_moves;
+	for (char i = 0; i < 64; i++) {
+		if (board.b[i] >= (1 + 6 * turn) && board.b[i] <= (6 + 6 * turn)) {
 			calcAvailMoves(i, avail_moves);
 			for (int j = 0; j < avail_moves.size(); j++) {
-				moves.push_back({ i, avail_moves[j] });
+				if (!detectCheck(turn, { i, avail_moves[j] })) {
+					moves.push_back({ i, avail_moves[j] });
+				}
 			}
 			avail_moves.clear();
 		}
@@ -353,137 +311,140 @@ void Engine::findAvailableMoves(bool turn, std::vector<Move>& moves) {
 }
 
 void Engine::findAvailableMoves(bool turn, std::vector<Move> preMoves, std::vector<Move>& moves) {
-	std::vector<Piece> storage;
+	std::vector<char> storage;
 	if (preMoves.size() >= 1) {
 		for (int i = 0; i < preMoves.size(); i++) {
-			storage.push_back(board[preMoves[i].sq[0]]);
-			storage.push_back(board[preMoves[i].sq[1]]);
-			board[preMoves[i].sq[1]] = board[preMoves[i].sq[0]];
-			board[preMoves[i].sq[0]] = empty_square;
+			storage.push_back(board.b[preMoves[i].oldSq]);
+			storage.push_back(board.b[preMoves[i].newSq]);
+			movePiece(preMoves[i]);
 		}
 	}
 	findAvailableMoves(turn, moves);
 	if (preMoves.size() >= 1) {
 		for (int i = preMoves.size() - 1; i >= 0; i--) {
-			board[preMoves[i].sq[0]] = storage[2 * i];
-			board[preMoves[i].sq[1]] = storage[2 * i + 1];
+			board.b[preMoves[i].oldSq] = storage[2 * i];
+			board.b[preMoves[i].newSq] = storage[2 * i + 1];
 		}
 	}
 }
 
-void Engine::pawnPromotion(int square, int choice) { // 1 = queen, 2 = bishop, 3 = knight
-	choice *= ((board[square] == white_pawn) ? 1 : -1); // Multiplies choice by 1 if we're promoting a white pawn, otherwise by -1
+void Engine::pawnPromotion(char square, char choice) { // 1 = queen, 2 = bishop, 3 = knight
+	choice *= ((board.b[square] == WHITE_PAWN) ? 1 : -1); // Multiplies choice by 1 if we're promoting a white pawn, otherwise by -1
 	switch (choice) {
 	case 1:
-		board[square] = white_queen;
+		board.b[square] = WHITE_QUEEN;
 		break;
 	case 2:
-		board[square] = white_bishop;
+		board.b[square] = WHITE_BISHOP;
 		break;
 	case 3:
-		board[square] = white_knight;
+		board.b[square] = WHITE_KNIGHT;
 		break;
 	case -1:
-		board[square] = black_queen;
+		board.b[square] = BLACK_QUEEN;
 		break;
 	case -2:
-		board[square] = black_bishop;
+		board.b[square] = BLACK_BISHOP;
 		break;
 	case -3:
-		board[square] = black_knight;
+		board.b[square] = BLACK_KNIGHT;
 		break;
 	}
-	detectCheck((board[square] > black_king));
+	detectCheck((board.b[square] > BLACK_KING));
 }
 
 bool Engine::canCastle(bool turn, bool side) {
-	// Check that the space between them is empty
-	//std::cout << "asd\n";
-	if (detectCheck(turn)) return false; // If player is in check
-	//std::cout << "cancastle\n";
-	if (turn) {
-		if (wCanCstl[side?1:0] == false) return false;
+	if (detectCheck(board.turn)) return false;
+	if (board.turn) {
+		if (board.wCanCstl[side?1:0] == false) return false;
 		if (side) { // White kingside
-			if (board[62] != empty_square || board[61] != empty_square) return false;
+			if (board.b[62] != EMPTY || board.b[61] != EMPTY) return false;
 			if (detectCheck(turn, { 60, 61 }) || detectCheck(turn, { 60, 62 })) return false;
 		}
 		else { // White queenside
-			if (board[57] != empty_square || board[58] != empty_square || board[59] != empty_square) return false;
+			if (board.b[57] != EMPTY || board.b[58] != EMPTY || board.b[59] != EMPTY) return false;
 			if (detectCheck(turn, { 60, 59 }) || detectCheck(turn, { 60, 58 })) return false;
 		}
 	}
 	else {
-		if (bCanCstl[side ? 1 : 0] == false) return false;
+		if (board.bCanCstl[side ? 1 : 0] == false) return false;
 		if (side) { // Black kingside
-			if (board[5] != empty_square || board[6] != empty_square) return false;
+			if (board.b[5] != EMPTY || board.b[6] != EMPTY) return false;
 			if (detectCheck(turn, { 4, 5 }) || detectCheck(turn, { 4, 6 })) return false;
 		}
-		else {
-			if (board[1] != empty_square || board[2] != empty_square || board[3] != empty_square) return false;
+		else { // Black queenside
+			if (board.b[1] != EMPTY || board.b[2] != EMPTY || board.b[3] != EMPTY) return false;
 			if (detectCheck(turn, { 4, 3 }) || detectCheck(turn, { 4, 2 })) return false;
 		}
 	}
 	return true;
 }
 
-void Engine::makePlayerMove(int oldSquare, int newSquare) {
-	movePiece(oldSquare, newSquare);
+void Engine::makePlayerMove(Move move, char moveType) {
+	movePiece(move);
 
 	// En passant rule
-	if (board[newSquare] == black_pawn && newSquare == (oldSquare + 16)) {
-		if (board[oldSquare + 15] == white_pawn) wEnPass[0] = { oldSquare + 15, oldSquare + 8 };
-		if (board[oldSquare + 17] == white_pawn) wEnPass[1] = { oldSquare + 17, oldSquare + 8 };
+	if (board.b[move.newSq] == BLACK_PAWN && move.newSq == (move.oldSq + 16)) {
+		if (board.b[move.oldSq + 15] == WHITE_PAWN) board.wEnPass[0] = { move.oldSq + 15, move.oldSq + 8 };
+		if (board.b[move.oldSq + 17] == WHITE_PAWN) board.wEnPass[1] = { move.oldSq + 17, move.oldSq + 8 };
 	}
-	if (board[newSquare] == white_pawn && newSquare == (oldSquare - 16)) {
-		if (board[oldSquare - 15] == black_pawn) bEnPass[0] = { oldSquare - 15, oldSquare - 8 };
-		if (board[oldSquare - 17] == black_pawn) bEnPass[1] = { oldSquare - 17, oldSquare - 8 };
+	else if (board.b[move.newSq] == WHITE_PAWN && move.newSq == (move.oldSq - 16)) {
+		if (board.b[move.oldSq - 15] == BLACK_PAWN) board.bEnPass[0] = { move.oldSq - 15, move.oldSq - 8 };
+		if (board.b[move.oldSq - 17] == BLACK_PAWN) board.bEnPass[1] = { move.oldSq - 17, move.oldSq - 8 };
 	}
 
-	if (board[newSquare] > black_king) {
-		wEnPass[0] = wEnPass[1] = {};
+	if (board.b[move.newSq] > BLACK_KING) {
+		board.wEnPass[0] = board.wEnPass[1] = {};
 	}
 	else {
-		bEnPass[0] = bEnPass[1] = {};
+		board.bEnPass[0] = board.bEnPass[1] = {};
 	}
 
-	if (board[newSquare] == black_pawn && ((newSquare - oldSquare) % 8 != 0)) { // If moving en passant
-		board[newSquare - 8] = empty_square;
+	if (board.b[move.newSq] == BLACK_PAWN && ((move.newSq - move.oldSq) % 8 != 0)) { // If moving en passant
+		board.b[move.newSq - 8] = EMPTY;
 	}
-	if (board[newSquare] == white_pawn && ((oldSquare - newSquare) % 8 != 0)) { // If moving en passant
-		board[newSquare + 8] = empty_square;
+	if (board.b[move.newSq] == WHITE_PAWN && ((move.oldSq - move.newSq) % 8 != 0)) { // If moving en passant
+		board.b[move.newSq + 8] = EMPTY;
 	}
 
 	// Check for pawn promotion
-	if (board[newSquare] == white_pawn && (int)(newSquare / 8) == 0) openPromotionWindow(newSquare);
-	if (board[newSquare] == black_pawn && (int)(newSquare / 8) == 7) openPromotionWindow(newSquare - 24);
+	if (board.b[move.newSq] == WHITE_PAWN && (int)(move.newSq / 8) == 0) openPromotionWindow(move.newSq);
+	if (board.b[move.newSq] == BLACK_PAWN && (int)(move.newSq / 8) == 7) openPromotionWindow(move.newSq - 24);
 
 	// Check whether it invalidates castling
-	if (board[newSquare] == white_king) {
-		wCanCstl[0] = wCanCstl[1] = false;
+	if (board.b[move.newSq] == WHITE_KING) {
+		board.wCanCstl[0] = board.wCanCstl[1] = false;
 	}
-	else if (board[newSquare] == white_rook) {
-		if (oldSquare == 63) wCanCstl[1] = false;
-		if (oldSquare == 55) wCanCstl[0] = false;
+	else if (board.b[move.newSq] == WHITE_ROOK) {
+		if (move.oldSq == 63) board.wCanCstl[1] = false;
+		if (move.oldSq == 55) board.wCanCstl[0] = false;
 	}
 
-	if (board[newSquare] == black_king) {
-		bCanCstl[0] = bCanCstl[1] = false;
+	if (board.b[move.newSq] == BLACK_KING) {
+		board.bCanCstl[0] = board.bCanCstl[1] = false;
 	}
-	else if (board[newSquare] == black_rook) {
-		if (oldSquare == 0) bCanCstl[0] = false;
-		if (oldSquare == 7) bCanCstl[1] = false;
+	else if (board.b[move.newSq] == BLACK_ROOK) {
+		if (move.oldSq == 0) board.bCanCstl[0] = false;
+		if (move.oldSq == 7) board.bCanCstl[1] = false;
 	}
 
 	// Check whether we're castling
-	if ((board[newSquare] == white_king || board[newSquare] == black_king) && abs(newSquare - oldSquare) == 2) {
-		if (newSquare == 2) movePiece(0, 3);
-		if (newSquare == 6) movePiece(7, 5);
-		if (newSquare == 62) movePiece(63, 61);
-		if (newSquare == 58) movePiece(56, 59);
+	if ((board.b[move.newSq] == WHITE_KING || board.b[move.newSq] == BLACK_KING) && abs(move.newSq - move.oldSq) == 2) {
+		if (move.newSq == 2) movePiece({ 0, 3 });
+		if (move.newSq == 6) movePiece({ 7, 5 });
+		if (move.newSq == 62) movePiece({ 63, 61 });
+		if (move.newSq == 58) movePiece({ 56, 59 });
 	}
 
 	switchTurn();
-	if (turn) wChk = detectCheck(turn);
-	else bChk = detectCheck(turn);
-	detectMate(turn);
+	if (board.turn) board.wChk = detectCheck(board.turn);
+	else board.bChk = detectCheck(board.turn);
+	if (detectMate(board.turn)) {
+		if (board.turn ? board.wChk : board.bChk) {
+			std::cout << "Mate\n";
+		}
+		else {
+			std::cout << "Stalemate\n";
+		}
+	}
 }

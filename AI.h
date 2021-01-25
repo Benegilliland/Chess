@@ -3,17 +3,18 @@
 
 class AI {
 	int counter;
-	const int nSteps = 2;
+	const char nSteps = 4;
 	std::vector<Move> bMove;
 	bool _side;
 	Engine* _engine;
 	const int pieceValue[13] = { 0, -100, -300, -300, -500, -900, -10000, 100, 300, 300, 500, 900, 10000 };
+	Board board_copy;
 
 public:
 	int evaluateBoard();
 	int evaluateMoves(std::vector<Move> moves);
 	void doMove();
-	bool shouldMove();
+	bool canMove();
 	int findMoveRecursive(char step, std::vector<Move> preMoves);
 
 	AI(bool side, Engine* engine) {

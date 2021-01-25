@@ -32,16 +32,13 @@ void Engine::initBoard() {
 		dstrect[i] = { (i % 8) * SQUARE_WIDTH, (int)(i / 8) * SQUARE_HEIGHT, SQUARE_WIDTH , SQUARE_HEIGHT };
 	}
 	for (int i = 0; i < 32; i++) {
-		board[i] = board[i + 32] = empty_square;
 		white_squares[i] = SDL_Rect{ (((2 * i) % 8) + (int)(i / 4) % 2) * SQUARE_WIDTH, (int)(i / 4) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
 		black_squares[i] = SDL_Rect{ (((2 * i + 1) % 8) - (int)(i / 4) % 2) * SQUARE_WIDTH, (int)(i / 4) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
 	}
-	quit = false;
-	promotingPawn = false;
 	dragSq = -1;
 }
 
-void Engine::openPromotionWindow(int square) {
+void Engine::openPromotionWindow(char square) {
 	promotingPawn = true;
 	promotingSquare = square;
 	int x = square % 8;
@@ -67,11 +64,11 @@ void Engine::keyDownEvent(SDL_Event& event) {
 void Engine::mDownEvent(SDL_Event& event) {
 	if (!promotingPawn) {
 		int nSquare = (int)(event.button.x / SQUARE_WIDTH) + 8 * (int)(event.button.y / SQUARE_HEIGHT);
-		if ((turn && board[nSquare] > black_king) || (!turn && board[nSquare] <= black_king && board[nSquare] != empty_square)) {
+		if ((board.turn && board.b[nSquare] > BLACK_KING) || (!board.turn && board.b[nSquare] <= BLACK_KING && board.b[nSquare] != EMPTY)) {
 			highlighted_squares.push_back({ (int)(event.button.x / SQUARE_WIDTH) * SQUARE_WIDTH,
 				(int)(event.button.y / SQUARE_HEIGHT) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT });
 			calcAvailMoves(nSquare, avail_moves);
-			if (board[nSquare] == white_king || board[nSquare] == black_king) addCastlingMoves(nSquare, avail_moves);
+			if (board.b[nSquare] == WHITE_KING || board.b[nSquare] == BLACK_KING) addCastlingMoves(nSquare, avail_moves);
 			showAvailMoves();
 			dragSq = nSquare;
 		}
@@ -82,18 +79,18 @@ void Engine::mUpEvent(SDL_Event& event) {
 	if (promotingPawn) {
 		closePromotionWindow();
 		SDL_Point mouse = { event.button.x, event.button.y };
-		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[0])) board[promotingSquare] = white_queen;
-		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[1])) board[promotingSquare] = white_rook;
-		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[2])) board[promotingSquare] = white_bishop;
-		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[3])) board[promotingSquare] = white_knight;
+		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[0])) board.b[promotingSquare] = WHITE_QUEEN;
+		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[1])) board.b[promotingSquare] = WHITE_ROOK;
+		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[2])) board.b[promotingSquare] = WHITE_BISHOP;
+		if (SDL_PointInRect(&mouse, &pawnPromotionWindow[3])) board.b[promotingSquare] = WHITE_KNIGHT;
 	}
 	else {
 		if (highlighted_squares.size() > 0) {
 			SDL_Rect rect = highlighted_squares[0];
-			int oldSquare = rect.x / SQUARE_WIDTH + 8 * rect.y / SQUARE_HEIGHT;
-			int newSquare = (int)(event.button.x / SQUARE_WIDTH) + 8 * (int)(event.button.y / SQUARE_HEIGHT);
-			if (validateMove(oldSquare, newSquare)) { // This should be a function in engine.cpp
-				makePlayerMove(oldSquare, newSquare);
+			char oldSquare = rect.x / SQUARE_WIDTH + 8 * rect.y / SQUARE_HEIGHT;
+			char newSquare = (int)(event.button.x / SQUARE_WIDTH) + 8 * (int)(event.button.y / SQUARE_HEIGHT);
+			if (validateMove({ oldSquare, newSquare })) { // This should be a function in engine.cpp
+				makePlayerMove({ oldSquare, newSquare });
 
 				// Draw
 				prevMove[0] = { (oldSquare % 8) * SQUARE_WIDTH, (int)(oldSquare / 8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT };
@@ -160,7 +157,7 @@ void Engine::drawGame() {
 	SDL_RenderFillRects(renderer, highlighted_squares.data(), highlighted_squares.size());
 
 	for (int i = 0; i < 64; i++) {
-		SDL_RenderCopy(renderer, image, &pieces[board[i] - 1], &dstrect[i]);
+		SDL_RenderCopy(renderer, image, &pieces[board.b[i] - 1], &dstrect[i]);
 	}
 
 	if (promotingPawn) {
