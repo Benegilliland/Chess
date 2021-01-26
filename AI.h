@@ -1,9 +1,10 @@
 #pragma once
 #include "engine.h"
+#include <execution>
 
 class AI {
 	int counter;
-	const char nSteps = 4;
+	const char nSteps = 3;
 	std::vector<Move> bMove;
 	bool _side;
 	Engine* _engine;

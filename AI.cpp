@@ -42,14 +42,16 @@ int AI::findMoveRecursive(char step, std::vector<Move> preMoves) {
 	if (step == nSteps) {
 		bestScore = 200000 * (curTurn ? -1 : 1);
 		for (auto& i : moves) {
-			preMoves.push_back(i);
-			curScore = evaluateMoves(preMoves);
-			//std::cout << "Step = " << (int)step << ", move = " << (int)i.oldSq << ", " << (int)i.newSq << ". Score = " << curScore << '\n';
-			preMoves.pop_back();
-			if ((curTurn && curScore >= bestScore) || (!curTurn && curScore <= bestScore)) {
-				bestScore = curScore;
-				bMove[step-1] = i;
-			}
+		//std::for_each(std::execution::par_unseq, std::begin(moves), std::end(moves), [&](Move& i) {
+		preMoves.push_back(i);
+		curScore = evaluateMoves(preMoves);
+		//std::cout << "Step = " << (int)step << ", move = " << (int)i.oldSq << ", " << (int)i.newSq << ". Score = " << curScore << '\n';
+		preMoves.pop_back();
+		if ((curTurn && curScore >= bestScore) || (!curTurn && curScore <= bestScore)) {
+			bestScore = curScore;
+			bMove[step - 1] = i;
+		}
+		//});
 		}
 	}
 	else {
@@ -73,7 +75,11 @@ int AI::findMoveRecursive(char step, std::vector<Move> preMoves) {
 void AI::doMove() {
 	std::vector<Move> moves;
 	counter = 0;
-    findMoveRecursive(1, moves);
+	_engine->findCheckCounter = 0;
+	_engine->findMovesCounter = 0;
+	findMoveRecursive(1, moves);
+	std::cout << "Checked " << _engine->findMovesCounter << " calcAvailMoves\n";
+	std::cout << "Checked " << _engine->findCheckCounter << " detectCheck\n";
 	std::cout << "Checked " << counter << " moves\n";
 	moves.clear();
 	_engine->movePiece(bMove[0]);

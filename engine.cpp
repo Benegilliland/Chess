@@ -194,6 +194,7 @@ void Engine::addCastlingMoves(char square, std::vector<char>& moves) {
 }
 
 void Engine::calcAvailMoves(char square, std::vector<char>& moves) {
+	++findMovesCounter;
 	switch (board.b[square]) {
 	case EMPTY:
 		break;
@@ -243,6 +244,7 @@ void Engine::showAvailMoves() {
 }
 
 bool Engine::detectCheck(bool turn) {
+	++findCheckCounter;
 	std::vector<char> avail_moves;
 	for (int i = 0; i < 64; i++) {
 		if (board.b[i] >= (7 - 6 * board.turn) && board.b[i] <= (12 - 6 * board.turn)) {

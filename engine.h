@@ -38,7 +38,7 @@ struct Board {
 	bool wCanCstl[2], bCanCstl[2]; // Whether each player can castle, [0] = queenside and [1] = kingside
 	char wKingPnt, bKingPnt; // Holds the position of the king
 
-	void copyTo(Board b) {
+	void copyTo(Board& b) {
 		b.turn = this->turn;
 		b.wChk = this->wChk;
 		b.bChk = this->bChk;
@@ -88,6 +88,9 @@ class Engine {
 	std::vector<char> avail_moves;
 
 public:
+
+	int findCheckCounter = 0;
+	int findMovesCounter = 0;
 
 	// GUI
 	bool initWindow();

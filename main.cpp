@@ -16,6 +16,12 @@ int main(int argc, char** argv) {
 }
 
 /*
+Optimisations:
+- only calculate detectcheck and calcavailmoves once then store it in memory, possibly do it after movePiece function
+- store copy of the board and "move" this new board so that we don't have to undo the move, we can simply release the board copy from memory (this might not actually be more efficient because we have to copy the data over each time
+- store data in arrays instead of vectors, because static memory is faster
+- multithreading, which probably needs to be done with point 2 above
+
 To add:
 - add better highlighting, with different colours
 - improve code
