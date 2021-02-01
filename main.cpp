@@ -3,7 +3,7 @@
 
 int main(int argc, char** argv) {
 	Engine chess;
-	AI gameAI(false, &chess);
+	AI gameAI(false, &chess, 4);
 	while (!chess.gameOver()) {
 		chess.drawGame();
 		chess.pollEvents();
@@ -23,6 +23,7 @@ Optimisations:
 - multithreading, which probably needs to be done with point 2 above
 
 To add:
+- detectCheck should be return type void and sets the chk array for both white and black
 - add better highlighting, with different colours
 - improve code
 - significantly optimise code
@@ -38,6 +39,7 @@ To add:
  - to significantly cut down on CPU usage, we can store each piece's available moves and only recalculate them after each move
  
 Bugs:
+I recoded the detectCheck function, now I need to recode the findmove function to create its own copy of the board
 */
 
 

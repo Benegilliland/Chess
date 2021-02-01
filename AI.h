@@ -4,7 +4,7 @@
 
 class AI {
 	int counter;
-	const char nSteps = 3;
+	char _nSteps;
 	std::vector<Move> bMove;
 	bool _side;
 	Engine* _engine;
@@ -12,14 +12,15 @@ class AI {
 	Board board_copy;
 
 public:
-	int evaluateBoard();
-	int evaluateMoves(std::vector<Move> moves);
+	int evaluateBoard(Board& board);
+	int evaluateMove(Board& board, Move& move);
 	void doMove();
 	bool canMove();
-	int findMoveRecursive(char step, std::vector<Move> preMoves);
+	int findMoveRecursive(char step, Board& board);
 
-	AI(bool side, Engine* engine) {
-		for (int i = 0; i < nSteps; i++) {
+	AI(bool side, Engine* engine, const char nSteps) {
+		_nSteps = nSteps;
+		for (int i = 0; i < _nSteps; i++) {
 			bMove.push_back({ 0,0 });
 		}
 		_side = side;

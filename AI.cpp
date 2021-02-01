@@ -1,52 +1,40 @@
 #include "AI.h"
+#include <chrono>
 
 bool AI::canMove() {
 	return (_engine->getTurn() == _side);
 }
 
-int AI::evaluateBoard() {
-	char* board = _engine->getBoard();
+int AI::evaluateBoard(Board& board) {
 	int score = 0;
 	for (int i = 0; i < 64; i++) {
-		score += pieceValue[board[i]];
+		score += pieceValue[board.b[i]];
 	}
-	if (_engine->detectCheck(true)) score -= 50000;
-	if (_engine->detectCheck(false)) score += 50000;
+	if (board.chk[1]) score -= 50000;
+	if (board.chk[0]) score += 50000;
 	/*if (_engine->detectMate(true)) score -= 100000;
 	if (_engine->detectMate(false)) score += 100000;*/
 	counter++;
 	return score;
 }
 
-int AI::evaluateMoves(std::vector<Move> moves) {
-	char* board = _engine->getBoard();
-	int score;
-	std::vector<char> storage;
-	for (int i = 0; i < moves.size(); i++) {
-		storage.push_back(board[moves[i].newSq]);
-		_engine->movePiece(moves[i]);
-	}
-	score = evaluateBoard();
-	for (int i = moves.size() - 1; i >= 0; i--) {
-		_engine->movePiece({ moves[i].newSq, moves[i].oldSq });
-		board[moves[i].newSq] = storage[i];
-	}
-	return score;
+int AI::evaluateMove(Board& board, Move& move) {
+	Board newBoard(board);
+	_engine->movePiece(move, newBoard);
+	return evaluateBoard(newBoard);
 }
 
-int AI::findMoveRecursive(char step, std::vector<Move> preMoves) {
+int AI::findMoveRecursive(char step, Board& board) {
 	std::vector<Move> moves;
 	int bestScore, curScore;
-	_engine->findAvailableMoves((_side+step)%2?false:true, preMoves, moves);
+	_engine->findAvailableMoves((_side+step)%2?false:true, moves, board);
 	bool curTurn = !((_side + step) % 2);
-	if (step == nSteps) {
+	if (step == _nSteps) {
 		bestScore = 200000 * (curTurn ? -1 : 1);
 		for (auto& i : moves) {
 		//std::for_each(std::execution::par_unseq, std::begin(moves), std::end(moves), [&](Move& i) {
-		preMoves.push_back(i);
-		curScore = evaluateMoves(preMoves);
+		curScore = evaluateMove(board, i);
 		//std::cout << "Step = " << (int)step << ", move = " << (int)i.oldSq << ", " << (int)i.newSq << ". Score = " << curScore << '\n';
-		preMoves.pop_back();
 		if ((curTurn && curScore >= bestScore) || (!curTurn && curScore <= bestScore)) {
 			bestScore = curScore;
 			bMove[step - 1] = i;
@@ -57,15 +45,17 @@ int AI::findMoveRecursive(char step, std::vector<Move> preMoves) {
 	else {
 		int curScore;
 		bestScore = 200000 * (curTurn ? -1 : 1);
+		Board newBoard(board);
+		_engine->findAvailableMoves((_side + step)%2 ? false:true, moves, newBoard);
 		for (auto& i : moves) {
-			preMoves.push_back(i);
-			curScore = findMoveRecursive(step + 1, preMoves);
+			newBoard = board;
+			_engine->movePiece(i, newBoard);
+			curScore = findMoveRecursive(step + 1, newBoard);
 			//std::cout << "Step = " << (int)step << ", move = " << (int)i.oldSq << ", " << (int)i.newSq << ". Score = " << curScore << '\n';
 			if ((curTurn && curScore >= bestScore) || (!curTurn && curScore <= bestScore)) {
 				bestScore = curScore;
-				bMove[step-1] = preMoves[0];
+				bMove[step-1] = i;
 			}
-			preMoves.pop_back();
 		}
 	}
 	//std::cout << "Step = " << (int)step << ", move = " << (int)bMove[step-1].oldSq << ", " << (int)bMove[step-1].newSq << ". Best score = " << bestScore << '\n';
@@ -77,12 +67,16 @@ void AI::doMove() {
 	counter = 0;
 	_engine->findCheckCounter = 0;
 	_engine->findMovesCounter = 0;
-	findMoveRecursive(1, moves);
+	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+	findMoveRecursive(1, *_engine->getBoard());
+	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+	std::cout << "Calculate n = " << (int)_nSteps << " in " << time_span.count() << " seconds\n";
 	std::cout << "Checked " << _engine->findMovesCounter << " calcAvailMoves\n";
 	std::cout << "Checked " << _engine->findCheckCounter << " detectCheck\n";
 	std::cout << "Checked " << counter << " moves\n";
 	moves.clear();
-	_engine->movePiece(bMove[0]);
+	_engine->movePiece(bMove[0], *_engine->getBoard());
 	_engine->switchTurn();
 }
 

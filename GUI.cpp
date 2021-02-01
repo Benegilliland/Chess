@@ -67,9 +67,8 @@ void Engine::mDownEvent(SDL_Event& event) {
 		if ((board.turn && board.b[nSquare] > BLACK_KING) || (!board.turn && board.b[nSquare] <= BLACK_KING && board.b[nSquare] != EMPTY)) {
 			highlighted_squares.push_back({ (int)(event.button.x / SQUARE_WIDTH) * SQUARE_WIDTH,
 				(int)(event.button.y / SQUARE_HEIGHT) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT });
-			calcAvailMoves(nSquare, avail_moves);
-			if (board.b[nSquare] == WHITE_KING || board.b[nSquare] == BLACK_KING) addCastlingMoves(nSquare, avail_moves);
-			showAvailMoves();
+			if (board.b[nSquare] == WHITE_KING || board.b[nSquare] == BLACK_KING) addCastlingMoves(nSquare, board);
+			showAvailMoves(nSquare);
 			dragSq = nSquare;
 		}
 	}
@@ -89,7 +88,7 @@ void Engine::mUpEvent(SDL_Event& event) {
 			SDL_Rect rect = highlighted_squares[0];
 			char oldSquare = rect.x / SQUARE_WIDTH + 8 * rect.y / SQUARE_HEIGHT;
 			char newSquare = (int)(event.button.x / SQUARE_WIDTH) + 8 * (int)(event.button.y / SQUARE_HEIGHT);
-			if (validateMove({ oldSquare, newSquare })) { // This should be a function in engine.cpp
+			if (validateMove({ oldSquare, newSquare }, board)) { // This should be a function in engine.cpp
 				makePlayerMove({ oldSquare, newSquare });
 
 				// Draw
@@ -171,4 +170,12 @@ void Engine::drawGame() {
 	}
 
 	SDL_RenderPresent(renderer);
+}
+
+void Engine::showAvailMoves(int square) {
+	for (Move& i : board.moves) {
+		if (i.oldSq == square) {
+			highlighted_squares.push_back({ (i.newSq % 8) * SQUARE_WIDTH, (int)(i.newSq / 8) * SQUARE_HEIGHT, SQUARE_WIDTH, SQUARE_HEIGHT });
+		}
+	}
 }

@@ -32,16 +32,43 @@ struct Move {
 struct Board {
 	char b[64];
 	bool turn; // True => white's turn, false => black's turn
-	bool wChk, bChk, wMt, bMt, stlMt; // White check, black check, white checkmate, black checkmate, stalemate
+	bool chk[2], wMt, bMt, stlMt; // White check, black check, white checkmate, black checkmate, stalemate
 	Move wEnPass[2], bEnPass[2]; // Stores the available en passant move(s), a maximum of 2 per side
 	bool enPassMove; // Whether the player is moving en passant
 	bool wCanCstl[2], bCanCstl[2]; // Whether each player can castle, [0] = queenside and [1] = kingside
 	char wKingPnt, bKingPnt; // Holds the position of the king
+	std::vector<Move> moves;
+
+	Board() {
+	}
+
+	Board(const Board& board) {
+		turn = board.turn;
+		//chk[0] = board.chk[0];
+		//chk[1] = board.chk[1];
+		wMt = board.wMt;
+		bMt = board.bMt;
+		stlMt = board.stlMt;
+		wEnPass[0] = board.wEnPass[0];
+		wEnPass[1] = board.wEnPass[1];
+		bEnPass[0] = board.bEnPass[0];
+		bEnPass[1] = board.bEnPass[1];
+		enPassMove = board.enPassMove;
+		wCanCstl[0] = board.wCanCstl[0];
+		wCanCstl[1] = board.wCanCstl[1];
+		bCanCstl[0] = board.bCanCstl[0];
+		bCanCstl[1] = board.bCanCstl[1];
+		wKingPnt = board.wKingPnt;
+		bKingPnt = board.bKingPnt;
+		for (int i = 0; i < 64; i++) {
+			b[i] = board.b[i];
+		}
+	}
 
 	void copyTo(Board& b) {
 		b.turn = this->turn;
-		b.wChk = this->wChk;
-		b.bChk = this->bChk;
+		b.chk[0] = this->chk[0];
+		b.chk[1] = this->chk[1];
 		b.wMt = this->wMt;
 		b.bMt = this->bMt;
 		b.stlMt = this->stlMt;
@@ -104,36 +131,37 @@ public:
 	void mUpEvent(SDL_Event& event);
 	void mMotionEvent(SDL_Event& event);
 	void keyDownEvent(SDL_Event& event);
-	void showAvailMoves();
+	void showAvailMoves(int square);
 
 	// Engine
 	void resetGame();
-	bool detectCheck(bool turn);
-	bool detectCheck(bool turn, Move move);
-	bool detectMate(bool turn);
-	void calcPawnMoves(char square, std::vector<char>& moves, bool white);
-	void calcKnightMoves(char square, std::vector<char>& moves, bool white);
-	void calcBishMoves(char square, std::vector<char>& moves, bool white);
-	void calcRookMoves(char square, std::vector<char>& moves, bool white);
-	void calcQueenMoves(char square, std::vector<char>& moves, bool white);
-	void calcKingMoves(char square, std::vector<char>& moves, bool white);
-	void addCastlingMoves(char square, std::vector<char>& moves);
-	void calcAvailMoves(char square, std::vector<char>& moves);
-	bool validateMove(Move move);
-	void movePiece(Move move);
+	void detectCheck(Board& board);
+	bool detectCheck(bool turn, Move move, Board& board);
+	bool detectMate(bool turn, Board& board);
+	void calcPawnMoves(char square, bool white, Board& board);
+	void calcKnightMoves(char square, bool white, Board& board);
+	void calcBishMoves(char square, bool white, Board& board);
+	void calcRookMoves(char square, bool white, Board& board);
+	void calcQueenMoves(char square, bool white, Board& board);
+	void calcKingMoves(char square, bool white, Board& board);
+	void addCastlingMoves(char square, Board& board);
+	void calcAvailMoves(Board& board);
+	bool validateMove(Move move, Board& board);
+	void movePiece(Move move, Board& board, int moveType = 0);
 	//void movePieces(std::vector<Move>& moves);
 	//void undoMoves(Board* board);
 	void makePlayerMove(Move move, char moveType = 0);
 	void switchTurn();
 	void pawnPromotion(char square, char choice);
 	void findAvailableMoves(bool turn, std::vector<Move> preMoves, std::vector<Move>& moves);
-	void findAvailableMoves(bool turn, std::vector<Move>& moves);
+	void findAvailableMoves(bool turn, std::vector<Move>& moves, Board& board);
 	bool canCastle(bool turn, bool side);
 
 	// AI
 	bool gameOver();
 	bool getTurn();
-	char* getBoard();
+	Board* getBoard();
+	bool* getCheck();
 
 	Engine() {
 		quit = false;
